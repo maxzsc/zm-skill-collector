@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -129,6 +130,29 @@ public class FileSkillRepository implements SkillRepository {
             return Optional.of(glossary);
         } catch (IOException e) {
             throw new RuntimeException("Failed to load glossary for domain: " + domain, e);
+        }
+    }
+
+    @Override
+    public List<String> loadRawDocuments(String domain, SkillType type) {
+        Path rawDir = basePath.resolve("raw").resolve(type.getValue()).resolve(domain);
+        if (!Files.exists(rawDir)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(rawDir)) {
+            return files
+                .filter(Files::isRegularFile)
+                .sorted()
+                .map(path -> {
+                    try {
+                        return Files.readString(path);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to read raw document: " + path, e);
+                    }
+                })
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to list raw documents for: " + domain, e);
         }
     }
 

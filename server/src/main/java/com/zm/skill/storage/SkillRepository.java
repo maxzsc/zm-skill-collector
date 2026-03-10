@@ -41,4 +41,9 @@ public interface SkillRepository {
      * Load a glossary for a domain.
      */
     Optional<Map<String, List<String>>> loadGlossary(String domain);
+
+    /**
+     * Load all raw documents for a given domain and type.
+     */
+    List<String> loadRawDocuments(String domain, SkillType type);
 }
