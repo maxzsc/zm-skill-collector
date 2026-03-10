@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+skill-collector:
+  storage:
+    base-path: ${SKILL_STORAGE_PATH:./skill-repo}
+  ai:
+    api-key: ${ANTHROPIC_API_KEY:}
+    models:
+      summarize: claude-haiku-4-5-20251001
+      cluster: claude-sonnet-4-6
+      generate: claude-sonnet-4-6
+      validate: claude-sonnet-4-6
+      dedup: claude-haiku-4-5-20251001
+    preset: balanced
+  staleness:
+    threshold-months: 6
