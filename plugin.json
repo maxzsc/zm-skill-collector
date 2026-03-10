@@ -1,0 +1,10 @@
+{
+  "name": "zm-skill",
+  "description": "ZM 业务知识与技能仓库 — 自动加载团队沉淀的业务 skill",
+  "version": "0.1.0",
+  "skills_dir": "skills",
+  "config": {
+    "server_url": "http://localhost:8080",
+    "teams": []
+  }
+}
