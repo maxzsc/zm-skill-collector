@@ -144,6 +144,37 @@ Skill 完整度随文档增量投递自动生长,不要求一次到位。
 
 生成 prompt 中明确约束这些长度,CI 验证时校验不通过则打回重新生成。
 
+## 核心逻辑模型
+
+### Job 模型（处理任务）
+```yaml
+job_id: string              # UUID
+status: ProcessingStatus    # SUBMITTED → PARSING → CLASSIFYING → CLUSTERING → AWAITING_CONFIRMATION → GENERATING → VALIDATING → DEDUP_CHECK → REVIEW_REQUIRED → COMPLETED / PARTIALLY_COMPLETED / FAILED
+idempotency_key: string     # SHA-256(file_contents + source_uri)
+retry_count: int            # 当前重试次数，上限 3
+error_code: string          # 失败错误码
+error_message: string       # 失败详情
+created_at: timestamp
+updated_at: timestamp
+```
+
+### Source 模型（来源文档）
+```yaml
+source_uri: string          # 文件路径 / 语雀 URL / Git 仓库地址
+source_type: enum           # LOCAL_FILE / YUQUE / GIT_REPO
+content_hash: string        # SHA-256 内容摘要，用于幂等和变更检测
+imported_at: timestamp      # 导入时间
+```
+
+### Skill 模型（增强）
+在现有 SkillMeta 基础上新增：
+```yaml
+schema_version: int         # 当前版本 1，用于未来字段迁移
+status: enum                # draft / active / deprecated / stale / needs_review
+```
+
+> Note: 实现层仍使用 Submission + SkillMeta + Feedback 三类实体，逻辑模型用于系分文档对齐和测试设计。
+
 ## 投递流程
 
 ### 最低投递要求
@@ -338,11 +369,11 @@ Web UI 管理后台展示完整详情:来源文档列表、反馈明细、使用
 ```yaml
 ai:
   models:
-    summarize: haiku          # 文档摘要/分类 — 轻量任务
-    cluster: sonnet           # 领域聚类 — 中等任务
-    generate: sonnet          # skill 生成 — 核心任务
-    validate: sonnet          # 质量验证
-    dedup: haiku              # 去重比对 — 嵌入向量即可
+    summarize: claude-haiku-4-5-20251001    # 文档摘要/分类 — 轻量任务
+    cluster: claude-sonnet-4-6              # 领域聚类 — 中等任务
+    generate: claude-sonnet-4-6             # skill 生成 — 核心任务
+    validate: claude-sonnet-4-6             # 质量验证
+    dedup: claude-haiku-4-5-20251001        # 去重比对 — 嵌入向量即可
   defaults:
     preset: balanced          # balanced（推荐） | quality（全 opus） | economy（全 haiku）
 ```
@@ -383,6 +414,17 @@ ai:
 - 智能匹配触发后按需加载完整 skill 内容
 - 反馈收集 hooks
 - `teams` 配置控制加载范围
+
+## 处理层模块划分
+
+处理层虽然部署为 Spring Boot 单体，但内部按职责划分为四类模块：
+
+| 模块 | 职责 | 对应 Service |
+|------|------|-------------|
+| Ingestion（接入） | 文档解析、格式标准化、敏感信息预过滤 | ParserFactory, SensitiveInfoFilter |
+| Orchestration（编排） | 流程状态机、任务调度、并发控制、重试 | PipelineService |
+| Generation（生成） | AI 分类、聚类、skill 生成、术语统一 | ClassificationService, ClusteringService, SkillGenerationService |
+| Validation & Publishing（校验与发布） | 格式校验、质量验证、去重检测、入库、Git commit、Plugin 打包 | ValidationService, DeduplicationService, FileSkillRepository, GitService |
 
 ## 仓库结构
 
