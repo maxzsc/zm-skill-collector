@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -22,13 +23,16 @@ public class SkillUpdateService {
 
     private final SkillRepository skillRepository;
     private final SkillGenerationService generationService;
+    private final ValidationService validationService;
 
     // P0-9: Domain-level concurrency locks
     private final ConcurrentHashMap<String, ReentrantLock> domainLocks = new ConcurrentHashMap<>();
 
-    public SkillUpdateService(SkillRepository skillRepository, SkillGenerationService generationService) {
+    public SkillUpdateService(SkillRepository skillRepository, SkillGenerationService generationService,
+                              ValidationService validationService) {
         this.skillRepository = skillRepository;
         this.generationService = generationService;
+        this.validationService = validationService;
     }
 
     /**
@@ -53,11 +57,23 @@ public class SkillUpdateService {
             // Regenerate the knowledge skill from all documents
             SkillDocument regenerated = generationService.generateKnowledge(domain, allDocs, visibility);
 
+            // QA-004b: Validate before saving
+            ValidationService.ValidationResult validationResult = validationService.validate(regenerated);
+            if (!validationResult.isValid()) {
+                throw new IllegalStateException("Validation failed: " + String.join("; ", validationResult.getErrors()));
+            }
+
             // Set last_updated timestamp
             regenerated.getMeta().setLastUpdated(Instant.now());
 
             // Save the regenerated skill
             skillRepository.save(regenerated.getMeta(), regenerated.getBody());
+
+            // QA-006b: Save glossary from aliases
+            if (regenerated.getMeta().getAliases() != null && !regenerated.getMeta().getAliases().isEmpty()) {
+                Map<String, List<String>> glossary = Map.of(regenerated.getMeta().getName(), regenerated.getMeta().getAliases());
+                skillRepository.saveGlossary(domain, glossary);
+            }
 
             return regenerated;
         } finally {
@@ -87,11 +103,23 @@ public class SkillUpdateService {
             // Regenerate the procedure skill from the new document
             SkillDocument regenerated = generationService.generateProcedure(domain, docContent, visibility);
 
+            // QA-004b: Validate before saving
+            ValidationService.ValidationResult validationResult = validationService.validate(regenerated);
+            if (!validationResult.isValid()) {
+                throw new IllegalStateException("Validation failed: " + String.join("; ", validationResult.getErrors()));
+            }
+
             // Set last_updated timestamp
             regenerated.getMeta().setLastUpdated(Instant.now());
 
             // Save the regenerated skill
             skillRepository.save(regenerated.getMeta(), regenerated.getBody());
+
+            // QA-006b: Save glossary from aliases
+            if (regenerated.getMeta().getAliases() != null && !regenerated.getMeta().getAliases().isEmpty()) {
+                Map<String, List<String>> glossary = Map.of(regenerated.getMeta().getName(), regenerated.getMeta().getAliases());
+                skillRepository.saveGlossary(domain, glossary);
+            }
 
             return regenerated;
         } finally {

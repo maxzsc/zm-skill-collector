@@ -66,7 +66,7 @@ class P0IntegrationTest {
         DeduplicationService deduplicationService = new DeduplicationService(claudeClient, aiModelConfig);
         repository = new FileSkillRepository(tempDir);
         ParserFactory parserFactory = new ParserFactory();
-        SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService);
+        SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService, validationService);
         releaseService = new ReleaseService(tempDir.toString());
 
         pipelineService = new PipelineService(

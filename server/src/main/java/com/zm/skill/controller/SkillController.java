@@ -1,6 +1,7 @@
 package com.zm.skill.controller;
 
 import com.zm.skill.controller.dto.ApiResponse;
+import com.zm.skill.controller.dto.ErrorCode;
 import com.zm.skill.domain.SkillMeta;
 import com.zm.skill.service.ReleaseService;
 import com.zm.skill.service.StalenessService;
@@ -59,7 +60,7 @@ public class SkillController {
     ) {
         Optional<SkillDocument> skill = skillRepository.findByName(name);
         if (skill.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.error(ErrorCode.NOT_FOUND, "Resource not found: " + name));
         }
 
         SkillDocument doc = skill.get();
@@ -68,7 +69,7 @@ public class SkillController {
         List<SkillMeta> singleList = List.of(doc.getMeta());
         List<SkillMeta> visible = VisibilityFilter.filter(singleList, teams);
         if (visible.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.error(ErrorCode.NOT_FOUND, "Resource not found: " + name));
         }
 
         // QA-011: Decorate body with staleness warning if stale

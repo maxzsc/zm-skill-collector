@@ -158,11 +158,36 @@ public class FileSkillRepository implements SkillRepository {
 
     @Override
     public void clearRawDirectory(String domain, SkillType type, String skillName) {
-        Path rawDir = basePath.resolve("raw").resolve(type.getValue()).resolve(domain);
-        if (!Files.exists(rawDir)) {
-            return;
+        if (type == SkillType.PROCEDURE && skillName != null && !skillName.isBlank()) {
+            // QA-008b: For procedure type, only delete the specific skill's raw file(s),
+            // not the entire domain directory (which would delete OTHER procedures).
+            // Check for skill-name subdirectory first: raw/procedure/{domain}/{skillName}/
+            Path skillDir = basePath.resolve("raw").resolve(type.getValue()).resolve(domain).resolve(skillName);
+            if (Files.isDirectory(skillDir)) {
+                deleteFilesInDir(skillDir);
+                return;
+            }
+            // Fallback: delete just the matching file in the domain directory
+            Path specificFile = basePath.resolve("raw").resolve(type.getValue()).resolve(domain).resolve(skillName);
+            if (Files.isRegularFile(specificFile)) {
+                try {
+                    Files.delete(specificFile);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete raw file: " + specificFile, e);
+                }
+            }
+        } else {
+            // For knowledge type, clearing the whole domain directory is acceptable
+            Path rawDir = basePath.resolve("raw").resolve(type.getValue()).resolve(domain);
+            if (!Files.exists(rawDir)) {
+                return;
+            }
+            deleteFilesInDir(rawDir);
         }
-        try (Stream<Path> files = Files.list(rawDir)) {
+    }
+
+    private void deleteFilesInDir(Path dir) {
+        try (Stream<Path> files = Files.list(dir)) {
             files.filter(Files::isRegularFile).forEach(path -> {
                 try {
                     Files.delete(path);
@@ -171,7 +196,7 @@ public class FileSkillRepository implements SkillRepository {
                 }
             });
         } catch (IOException e) {
-            throw new RuntimeException("Failed to clear raw directory: " + rawDir, e);
+            throw new RuntimeException("Failed to clear raw directory: " + dir, e);
         }
     }
 

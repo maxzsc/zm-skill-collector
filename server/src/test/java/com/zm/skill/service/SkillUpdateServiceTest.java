@@ -28,13 +28,21 @@ class SkillUpdateServiceTest {
     @Mock
     private SkillGenerationService generationService;
 
+    @Mock
+    private ValidationService validationService;
+
     private FileSkillRepository repository;
     private SkillUpdateService skillUpdateService;
 
     @BeforeEach
     void setUp() {
         repository = new FileSkillRepository(tempDir);
-        skillUpdateService = new SkillUpdateService(repository, generationService);
+        skillUpdateService = new SkillUpdateService(repository, generationService, validationService);
+
+        // QA-004b: By default, validation passes
+        ValidationService.ValidationResult validResult = new ValidationService.ValidationResult();
+        validResult.setValid(true);
+        when(validationService.validate(any(SkillDocument.class))).thenReturn(validResult);
     }
 
     @Test

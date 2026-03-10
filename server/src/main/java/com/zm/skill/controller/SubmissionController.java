@@ -185,7 +185,7 @@ public class SubmissionController {
     public ResponseEntity<ApiResponse<Submission>> getStatus(@PathVariable String id) {
         Submission submission = pipelineService.getSubmission(id);
         if (submission == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.error(ErrorCode.NOT_FOUND, "Resource not found: " + id));
         }
         return ResponseEntity.ok(ApiResponse.ok(submission));
     }
@@ -194,12 +194,12 @@ public class SubmissionController {
     public ResponseEntity<ApiResponse<DomainMapResponse>> getDomainMap(@PathVariable String id) {
         Submission submission = pipelineService.getSubmission(id);
         if (submission == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.error(ErrorCode.NOT_FOUND, "Resource not found: " + id));
         }
 
         List<DomainCluster> clusters = domainMaps.get(id);
         if (clusters == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.error(ErrorCode.NOT_FOUND, "Resource not found: " + id));
         }
 
         DomainMapResponse response = DomainMapResponse.builder()
@@ -217,7 +217,7 @@ public class SubmissionController {
     ) {
         Submission submission = pipelineService.getSubmission(id);
         if (submission == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.error(ErrorCode.NOT_FOUND, "Resource not found: " + id));
         }
 
         try {

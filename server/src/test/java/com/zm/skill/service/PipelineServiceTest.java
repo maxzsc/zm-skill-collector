@@ -49,7 +49,7 @@ class PipelineServiceTest {
         DeduplicationService deduplicationService = new DeduplicationService(claudeClient, aiModelConfig);
         FileSkillRepository repository = new FileSkillRepository(tempDir);
         ParserFactory parserFactory = new ParserFactory();
-        SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService);
+        SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService, validationService);
 
         ReleaseService releaseService = mock(ReleaseService.class);
 
