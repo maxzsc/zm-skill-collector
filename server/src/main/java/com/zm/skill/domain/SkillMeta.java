@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.List;
 
 @Data
@@ -37,6 +38,14 @@ public class SkillMeta {
 
     @JsonProperty("related_knowledge")
     private List<String> relatedKnowledge;
+
+    @JsonProperty("last_updated")
+    private Instant lastUpdated;
+
+    private Boolean stale;
+
+    @JsonProperty("needs_review")
+    private Boolean needsReview;
 
     // Validation methods
     public static boolean isValidSummary(String summary) {
