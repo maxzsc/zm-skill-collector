@@ -24,7 +24,7 @@ public class SubmissionController {
     private final ParserFactory parserFactory;
 
     // Store domain maps for retrieval between submit and confirm
-    private final Map<String, List<DomainCluster>> domainMaps = new LinkedHashMap<>();
+    private final Map<String, List<DomainCluster>> domainMaps = new java.util.concurrent.ConcurrentHashMap<>();
 
     public SubmissionController(PipelineService pipelineService, ParserFactory parserFactory) {
         this.pipelineService = pipelineService;
@@ -90,22 +90,8 @@ public class SubmissionController {
     public ResponseEntity<ApiResponse<SubmitResponse>> submitYuque(
             @Valid @RequestBody YuqueSubmitRequest request
     ) {
-        String submissionId = UUID.randomUUID().toString();
-        Submission submission = Submission.builder()
-                .id(submissionId)
-                .fileName(request.getUrl())
-                .description(request.getDescription())
-                .seedDomain(request.getSeedDomain())
-                .status(ProcessingStatus.SUBMITTED)
-                .build();
-
-        // TODO: Fetch content from Yuque URL. For now return a placeholder.
-        SubmitResponse response = SubmitResponse.builder()
-                .submissionId(submissionId)
-                .status(submission.getStatus().getValue())
-                .build();
-
-        return ResponseEntity.ok(ApiResponse.ok(response));
+        return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_IMPLEMENTED)
+                .body(ApiResponse.error("\u8bed\u96c0\u5bfc\u5165\u529f\u80fd\u5c1a\u672a\u5b9e\u73b0"));
     }
 
     @GetMapping("/{id}/status")
@@ -138,7 +124,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/confirm")
-    public ResponseEntity<ApiResponse<List<PipelineResult>>> confirm(
+    public ResponseEntity<ApiResponse<SubmitResponse>> confirm(
             @PathVariable String id,
             @Valid @RequestBody ConfirmRequest request
     ) {
@@ -148,8 +134,13 @@ public class SubmissionController {
         }
 
         try {
-            List<PipelineResult> results = pipelineService.confirmAndGenerate(id, request.getClusters());
-            return ResponseEntity.ok(ApiResponse.ok(results));
+            // Trigger async generation; client should poll status endpoint
+            pipelineService.confirmAndGenerate(id, request.getClusters());
+            SubmitResponse response = SubmitResponse.builder()
+                    .submissionId(id)
+                    .status("generating")
+                    .build();
+            return ResponseEntity.accepted().body(ApiResponse.ok(response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(e.getMessage()));

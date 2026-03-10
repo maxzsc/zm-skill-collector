@@ -48,15 +48,24 @@ public class SkillFileFormat {
             throw new IllegalArgumentException("Invalid skill file format: missing front matter");
         }
 
-        // Find the second separator
-        int firstSep = content.indexOf(SEPARATOR);
-        int secondSep = content.indexOf(SEPARATOR, firstSep + SEPARATOR.length());
+        // Find the closing separator: look for \n---\n after the opening ---
+        int afterFirstSep = SEPARATOR.length();
+        // Skip optional newline after opening ---
+        if (afterFirstSep < content.length() && content.charAt(afterFirstSep) == '\n') {
+            afterFirstSep++;
+        }
+        int secondSep = content.indexOf("\n" + SEPARATOR + "\n", afterFirstSep);
         if (secondSep < 0) {
-            throw new IllegalArgumentException("Invalid skill file format: missing closing separator");
+            // Try \n---EOF (file may not have trailing newline after closing ---)
+            if (content.endsWith("\n" + SEPARATOR)) {
+                secondSep = content.length() - SEPARATOR.length() - 1;
+            } else {
+                throw new IllegalArgumentException("Invalid skill file format: missing closing separator");
+            }
         }
 
-        String yamlPart = content.substring(firstSep + SEPARATOR.length(), secondSep).trim();
-        String bodyPart = content.substring(secondSep + SEPARATOR.length()).trim();
+        String yamlPart = content.substring(afterFirstSep, secondSep).trim();
+        String bodyPart = content.substring(secondSep + 1 + SEPARATOR.length()).trim();
 
         try {
             SkillMeta meta = YAML_MAPPER.readValue(yamlPart, SkillMeta.class);

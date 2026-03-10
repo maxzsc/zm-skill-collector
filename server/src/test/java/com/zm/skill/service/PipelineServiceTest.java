@@ -193,7 +193,7 @@ class PipelineServiceTest {
                 .build()
         );
 
-        List<PipelineResult> results = pipelineService.confirmAndGenerate("sub-gen", confirmedClusters);
+        List<PipelineResult> results = pipelineService.confirmAndGenerate("sub-gen", confirmedClusters).join();
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).isSuccess()).isTrue();

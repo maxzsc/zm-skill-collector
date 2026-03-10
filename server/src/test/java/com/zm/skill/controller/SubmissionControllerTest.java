@@ -87,7 +87,7 @@ class SubmissionControllerTest {
     }
 
     @Test
-    void submitYuque_shouldReturnSubmissionId() throws Exception {
+    void submitYuque_shouldReturn501NotImplemented() throws Exception {
         YuqueSubmitRequest request = YuqueSubmitRequest.builder()
                 .url("https://yuque.com/team/doc")
                 .description("yuque doc")
@@ -97,9 +97,9 @@ class SubmissionControllerTest {
         mockMvc.perform(post("/api/submissions/yuque")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.submissionId").isNotEmpty());
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").isNotEmpty());
     }
 
     @Test
@@ -136,21 +136,21 @@ class SubmissionControllerTest {
     }
 
     @Test
-    void confirm_shouldReturnPipelineResults() throws Exception {
+    void confirm_shouldReturnAcceptedWithSubmissionId() throws Exception {
         Submission submission = Submission.builder()
                 .id("sub-1")
                 .status(ProcessingStatus.AWAITING_CONFIRMATION)
                 .build();
         when(pipelineService.getSubmission("sub-1")).thenReturn(submission);
 
-        List<PipelineResult> results = List.of(
-                PipelineResult.builder()
-                        .skillName("payment-clearing")
-                        .domain("payment")
-                        .success(true)
-                        .build()
-        );
-        when(pipelineService.confirmAndGenerate(any(String.class), any())).thenReturn(results);
+        when(pipelineService.confirmAndGenerate(any(String.class), any()))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(List.of(
+                        PipelineResult.builder()
+                                .skillName("payment-clearing")
+                                .domain("payment")
+                                .success(true)
+                                .build()
+                )));
 
         ConfirmRequest request = ConfirmRequest.builder()
                 .clusters(List.of(
@@ -166,9 +166,9 @@ class SubmissionControllerTest {
         mockMvc.perform(post("/api/submissions/sub-1/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0].skillName").value("payment-clearing"))
-                .andExpect(jsonPath("$.data[0].success").value(true));
+                .andExpect(jsonPath("$.data.submissionId").value("sub-1"))
+                .andExpect(jsonPath("$.data.status").value("generating"));
     }
 }

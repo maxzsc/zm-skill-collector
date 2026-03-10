@@ -41,7 +41,7 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-SKILL_NAMES=$(echo "$INDEX_RESPONSE" | jq -r '.[].name')
+SKILL_NAMES=$(echo "$INDEX_RESPONSE" | jq -r '.data[].name')
 
 if [ -z "$SKILL_NAMES" ]; then
   echo "==> No skills found on server."
@@ -69,7 +69,7 @@ while IFS= read -r SKILL_NAME; do
   SAFE_NAME=$(echo "$SKILL_NAME" | sed 's/[^a-zA-Z0-9_\u4e00-\u9fff-]/_/g')
 
   # Extract content from JSON response and write as .md
-  echo "$SKILL_CONTENT" | jq -r '.content // empty' > "$SKILLS_DIR/${SAFE_NAME}.md" 2>/dev/null || {
+  echo "$SKILL_CONTENT" | jq -r '.data.body // empty' > "$SKILLS_DIR/${SAFE_NAME}.md" 2>/dev/null || {
     # If jq extraction fails, write the raw JSON
     echo "$SKILL_CONTENT" > "$SKILLS_DIR/${SAFE_NAME}.json"
   }

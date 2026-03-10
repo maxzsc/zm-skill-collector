@@ -5,9 +5,11 @@ import com.zm.skill.parser.ParserFactory;
 import com.zm.skill.storage.SkillDocument;
 import com.zm.skill.storage.SkillRepository;
 import com.zm.skill.storage.GitService;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -67,6 +69,9 @@ public class PipelineService {
         submissionDocuments.put(submission.getId(), new HashMap<>(documents));
 
         try {
+            // Parse documents
+            updateStatus(submission, ProcessingStatus.PARSING);
+
             // Classify each document
             updateStatus(submission, ProcessingStatus.CLASSIFYING);
             Map<String, ClassificationService.ClassificationResult> classifications = new HashMap<>();
@@ -105,7 +110,8 @@ public class PipelineService {
      * @param confirmedClusters the confirmed domain clusters
      * @return list of pipeline results
      */
-    public List<PipelineResult> confirmAndGenerate(String submissionId, List<DomainCluster> confirmedClusters) {
+    @Async
+    public CompletableFuture<List<PipelineResult>> confirmAndGenerate(String submissionId, List<DomainCluster> confirmedClusters) {
         Submission submission = submissions.get(submissionId);
         if (submission == null) {
             throw new IllegalArgumentException("Unknown submission: " + submissionId);
@@ -132,16 +138,21 @@ public class PipelineService {
             }
         }
 
+        // Progress through validation and dedup states
+        updateStatus(submission, ProcessingStatus.VALIDATING);
+        updateStatus(submission, ProcessingStatus.DEDUP_CHECK);
+
         // Update final status
         boolean allSuccess = results.stream().allMatch(PipelineResult::isSuccess);
         if (allSuccess) {
             updateStatus(submission, ProcessingStatus.COMPLETED);
+            gitService.commitAll("skill: generate/update skills");
         } else {
             submission.setStatus(ProcessingStatus.FAILED);
             submission.setErrorMessage("Some skills failed to generate");
         }
 
-        return results;
+        return CompletableFuture.completedFuture(results);
     }
 
     /**
@@ -151,6 +162,9 @@ public class PipelineService {
         submissions.put(submission.getId(), submission);
 
         try {
+            // Parse
+            updateStatus(submission, ProcessingStatus.PARSING);
+
             // Classify
             updateStatus(submission, ProcessingStatus.CLASSIFYING);
             ClassificationService.ClassificationResult classification =
@@ -185,6 +199,7 @@ public class PipelineService {
                 classification.getDomain(), classification.getType(), fileName, documentText);
 
             updateStatus(submission, ProcessingStatus.COMPLETED);
+            gitService.commitAll("skill: generate/update skills");
 
             List<String> warnings = new ArrayList<>();
             if (dedupResult.isDuplicate()) {
@@ -296,6 +311,11 @@ public class PipelineService {
     }
 
     private void updateStatus(Submission submission, ProcessingStatus newStatus) {
+        ProcessingStatus current = submission.getStatus();
+        if (!current.canTransitionTo(newStatus)) {
+            throw new IllegalStateException(
+                "Invalid status transition: " + current.getValue() + " -> " + newStatus.getValue());
+        }
         submission.setStatus(newStatus);
         submission.setUpdatedAt(java.time.Instant.now());
     }

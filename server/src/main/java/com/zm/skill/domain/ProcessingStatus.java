@@ -23,7 +23,7 @@ public enum ProcessingStatus {
     private static final Map<ProcessingStatus, Set<ProcessingStatus>> VALID_TRANSITIONS = Map.of(
         SUBMITTED, Set.of(PARSING, FAILED),
         PARSING, Set.of(CLASSIFYING, FAILED),
-        CLASSIFYING, Set.of(CLUSTERING, FAILED),
+        CLASSIFYING, Set.of(CLUSTERING, GENERATING, FAILED),
         CLUSTERING, Set.of(AWAITING_CONFIRMATION, FAILED),
         AWAITING_CONFIRMATION, Set.of(GENERATING, FAILED),
         GENERATING, Set.of(VALIDATING, FAILED),
