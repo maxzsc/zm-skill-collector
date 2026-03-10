@@ -21,15 +21,18 @@ public class StalenessService {
 
     private final SkillRepository skillRepository;
     private final GitService gitService;
+    private final AuditService auditService;
     private final int thresholdMonths;
 
     public StalenessService(
         SkillRepository skillRepository,
         GitService gitService,
+        AuditService auditService,
         @Value("${skill-collector.staleness.threshold-months:6}") int thresholdMonths
     ) {
         this.skillRepository = skillRepository;
         this.gitService = gitService;
+        this.auditService = auditService;
         this.thresholdMonths = thresholdMonths;
     }
 
@@ -41,20 +44,27 @@ public class StalenessService {
     public void scanForStaleSkills() {
         List<SkillMeta> allSkills = skillRepository.loadIndex();
         Instant threshold = Instant.now().minus(thresholdMonths * 30L, ChronoUnit.DAYS);
-        boolean anyChanged = false;
+        int updatedCount = 0;
 
         for (SkillMeta meta : allSkills) {
-            skillRepository.findByName(meta.getName()).ifPresent(doc -> {
+            var docOpt = skillRepository.findByName(meta.getName());
+            if (docOpt.isPresent()) {
+                SkillDocument doc = docOpt.get();
                 boolean isStale = isStale(doc.getMeta(), threshold);
                 if (isStale && !Boolean.TRUE.equals(doc.getMeta().getStale())) {
                     doc.getMeta().setStale(true);
                     skillRepository.save(doc.getMeta(), doc.getBody());
+                    updatedCount++;
                 } else if (!isStale && Boolean.TRUE.equals(doc.getMeta().getStale())) {
                     doc.getMeta().setStale(null);
                     skillRepository.save(doc.getMeta(), doc.getBody());
+                    updatedCount++;
                 }
-            });
+            }
         }
+
+        // P1-20: Audit logging
+        auditService.log("staleness_scan", "system", updatedCount + " skills updated");
 
         gitService.commitAll("lifecycle: update staleness markers");
     }

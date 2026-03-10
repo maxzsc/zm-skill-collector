@@ -21,3 +21,7 @@ skill-collector:
     preset: balanced
   staleness:
     threshold-months: 6
+  limits:
+    max-file-size-mb: 20
+    max-batch-files: 50
+    max-batch-size-mb: 100

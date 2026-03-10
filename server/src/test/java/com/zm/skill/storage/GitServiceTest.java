@@ -120,20 +120,4 @@ class GitServiceTest {
         }
     }
 
-    @Test
-    void shouldCommitSpecificFile() throws Exception {
-        GitService gitService = new GitService(tempDir);
-        gitService.init();
-
-        Files.writeString(tempDir.resolve("file1.md"), "content 1");
-        Files.writeString(tempDir.resolve("file2.md"), "content 2");
-
-        gitService.commitFile("file1.md", "Add file1 only");
-
-        try (Git git = Git.open(tempDir.toFile())) {
-            Status status = git.status().call();
-            // file2.md should still be untracked
-            assertThat(status.getUntracked()).contains("file2.md");
-        }
-    }
 }

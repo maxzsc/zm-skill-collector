@@ -45,7 +45,7 @@ class PipelineServiceTest {
         ClusteringService clusteringService = new ClusteringService(claudeClient, aiModelConfig);
         SkillGenerationService generationService = new SkillGenerationService(claudeClient, sensitiveFilter);
         ValidationService validationService = new ValidationService(claudeClient);
-        DeduplicationService deduplicationService = new DeduplicationService();
+        DeduplicationService deduplicationService = new DeduplicationService(claudeClient, aiModelConfig);
         FileSkillRepository repository = new FileSkillRepository(tempDir);
         ParserFactory parserFactory = new ParserFactory();
         SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService);

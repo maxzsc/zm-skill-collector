@@ -28,13 +28,16 @@ class StalenessServiceTest {
     @Mock
     private GitService gitService;
 
+    @Mock
+    private AuditService auditService;
+
     private FileSkillRepository repository;
     private StalenessService stalenessService;
 
     @BeforeEach
     void setUp() {
         repository = new FileSkillRepository(tempDir);
-        stalenessService = new StalenessService(repository, gitService, 6);
+        stalenessService = new StalenessService(repository, gitService, auditService, 6);
     }
 
     @Test
@@ -130,7 +133,7 @@ class StalenessServiceTest {
 
     @Test
     void shouldUseConfiguredThreshold() {
-        StalenessService customService = new StalenessService(repository, gitService, 3);
+        StalenessService customService = new StalenessService(repository, gitService, auditService, 3);
         Instant fourMonthsAgo = Instant.now().minus(120, ChronoUnit.DAYS);
         SkillMeta meta = SkillMeta.builder()
             .name("threshold-skill")

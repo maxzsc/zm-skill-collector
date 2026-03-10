@@ -129,8 +129,13 @@ public class PipelineService {
             throw new IllegalStateException("No documents found for submission: " + submissionId);
         }
 
+        // P1-19: Snapshot documents at confirm time to prevent inconsistency
+        // if new docs are submitted between confirm and generate
+        Map<String, String> snapshotDocuments = new HashMap<>(documents);
+
         updateStatus(submission, ProcessingStatus.GENERATING);
         List<PipelineResult> results = new ArrayList<>();
+        List<String> failedClusterNames = new ArrayList<>();
 
         for (DomainCluster cluster : confirmedClusters) {
             try {
@@ -138,9 +143,9 @@ public class PipelineService {
                 List<SkillDocument> existingSkills = loadExistingSkillsForDomain(cluster.getDomain());
                 PipelineResult result;
                 if (!existingSkills.isEmpty()) {
-                    result = updateExistingSkill(cluster, documents, existingSkills);
+                    result = updateExistingSkill(cluster, snapshotDocuments, existingSkills);
                 } else {
-                    result = generateSkillForCluster(cluster, documents, submission);
+                    result = generateSkillForCluster(cluster, snapshotDocuments, submission);
                 }
                 results.add(result);
             } catch (Exception e) {
@@ -149,13 +154,14 @@ public class PipelineService {
                     submission.setRetryCount(submission.getRetryCount() + 1);
                     // Retry: re-attempt this cluster
                     try {
-                        PipelineResult retryResult = generateSkillForCluster(cluster, documents, submission);
+                        PipelineResult retryResult = generateSkillForCluster(cluster, snapshotDocuments, submission);
                         results.add(retryResult);
                         continue;
                     } catch (Exception retryEx) {
                         // Fall through to failure handling
                     }
                 }
+                failedClusterNames.add(cluster.getDomain());
                 results.add(PipelineResult.builder()
                     .domain(cluster.getDomain())
                     .success(false)
@@ -175,12 +181,13 @@ public class PipelineService {
             updateStatus(submission, ProcessingStatus.COMPLETED);
             gitService.commitAll("skill: generate/update skills");
         } else if (anySuccess) {
-            // P0-8: Partial success
+            // P0-8 / P1-21: Partial success - store failed cluster names
             updateStatus(submission, ProcessingStatus.PARTIALLY_COMPLETED);
+            submission.setErrorMessage("Failed clusters: " + String.join(", ", failedClusterNames));
             gitService.commitAll("skill: generate/update skills (partial)");
         } else {
             submission.setStatus(ProcessingStatus.FAILED);
-            submission.setErrorMessage("Some skills failed to generate");
+            submission.setErrorMessage("All clusters failed to generate: " + String.join(", ", failedClusterNames));
         }
 
         return CompletableFuture.completedFuture(results);

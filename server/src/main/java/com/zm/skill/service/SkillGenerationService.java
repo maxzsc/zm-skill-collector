@@ -42,8 +42,9 @@ public class SkillGenerationService {
      * Generate a knowledge skill by aggregating multiple documents.
      */
     public SkillDocument generateKnowledge(String domain, List<String> documentTexts, Visibility visibility) {
-        // Wrap each document in XML tags for prompt injection protection
+        // P1-17: Filter sensitive info from source docs BEFORE passing to prompt (defense in depth)
         List<String> wrappedDocs = documentTexts.stream()
+            .map(sensitiveInfoFilter::filter)
             .map(SkillGenerationService::wrapUserDocument)
             .collect(Collectors.toList());
         String prompt = KnowledgePrompt.build(domain, wrappedDocs);
@@ -55,8 +56,9 @@ public class SkillGenerationService {
      * Generate a procedure skill from a single document.
      */
     public SkillDocument generateProcedure(String domain, String documentText, Visibility visibility) {
-        // Wrap document in XML tags for prompt injection protection
-        String wrappedDoc = wrapUserDocument(documentText);
+        // P1-17: Filter sensitive info from source doc BEFORE passing to prompt (defense in depth)
+        String filteredDoc = sensitiveInfoFilter.filter(documentText);
+        String wrappedDoc = wrapUserDocument(filteredDoc);
         String prompt = ProcedurePrompt.build(domain, wrappedDoc);
         String aiResponse = claudeClient.generate(prompt);
         return parseAndBuildSkill(aiResponse, domain, SkillType.PROCEDURE, visibility);

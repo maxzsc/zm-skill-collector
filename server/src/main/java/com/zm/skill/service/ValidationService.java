@@ -90,6 +90,18 @@ public class ValidationService {
             }
         }
 
+        // P1-22: For L2+ procedure skills, check that at least preconditions or verification is non-empty
+        if (errors.isEmpty() && meta.getType() == SkillType.PROCEDURE) {
+            Completeness level = determineCompleteness(doc);
+            if (level == Completeness.L2 || level == Completeness.L3) {
+                boolean hasPreconditions = meta.getPreconditions() != null && !meta.getPreconditions().isEmpty();
+                boolean hasVerification = meta.getVerification() != null && !meta.getVerification().isEmpty();
+                if (!hasPreconditions && !hasVerification) {
+                    errors.add("L2+ procedure skills must have at least preconditions or verification");
+                }
+            }
+        }
+
         result.setErrors(errors);
         result.setValid(errors.isEmpty());
 

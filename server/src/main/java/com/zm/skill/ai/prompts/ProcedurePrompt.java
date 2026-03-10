@@ -21,6 +21,10 @@ public final class ProcedurePrompt {
                 "summary": "<one-line summary, MAX 50 characters>",
                 "trigger": "<when to use this procedure, MAX 100 characters>",
                 "aliases": ["<alias1>", "<alias2>", ...] (MAX 10 aliases),
+                "preconditions": ["<precondition1>", ...] (list of prerequisites),
+                "inputs": ["<input1>", ...] (list of required inputs),
+                "expected_outputs": ["<output1>", ...] (list of expected results),
+                "verification": ["<check1>", ...] (list of verification steps),
                 "body": "<full markdown content with steps, preconditions, verification>"
             }
 

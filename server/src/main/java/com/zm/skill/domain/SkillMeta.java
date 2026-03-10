@@ -39,6 +39,19 @@ public class SkillMeta {
     @JsonProperty("related_knowledge")
     private List<String> relatedKnowledge;
 
+    // P1-22: Procedure optional fields
+    @JsonProperty("preconditions")
+    private List<String> preconditions;
+
+    @JsonProperty("inputs")
+    private List<String> inputs;
+
+    @JsonProperty("expected_outputs")
+    private List<String> expectedOutputs;
+
+    @JsonProperty("verification")
+    private List<String> verification;
+
     @JsonProperty("last_updated")
     private Instant lastUpdated;
 

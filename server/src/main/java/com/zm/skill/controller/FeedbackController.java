@@ -3,6 +3,7 @@ package com.zm.skill.controller;
 import com.zm.skill.controller.dto.ApiResponse;
 import com.zm.skill.controller.dto.FeedbackRequest;
 import com.zm.skill.domain.Feedback;
+import com.zm.skill.service.AuditService;
 import com.zm.skill.service.FeedbackService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +17,11 @@ import java.util.Map;
 public class FeedbackController {
 
     private final FeedbackService feedbackService;
+    private final AuditService auditService;
 
-    public FeedbackController(FeedbackService feedbackService) {
+    public FeedbackController(FeedbackService feedbackService, AuditService auditService) {
         this.feedbackService = feedbackService;
+        this.auditService = auditService;
     }
 
     @PostMapping
@@ -32,6 +35,9 @@ public class FeedbackController {
             .build();
 
         feedbackService.submit(feedback);
+
+        // P1-20: Audit logging
+        auditService.log("feedback", request.getSkillName(), String.valueOf(request.getRating()));
 
         return ResponseEntity.ok(ApiResponse.ok("Feedback recorded"));
     }

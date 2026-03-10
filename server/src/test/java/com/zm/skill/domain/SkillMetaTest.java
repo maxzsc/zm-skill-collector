@@ -94,6 +94,26 @@ class SkillMetaTest {
     }
 
     @Test
+    void shouldRoundTripProcedureOptionalFields() throws Exception {
+        SkillMeta meta = SkillMeta.builder()
+            .name("deploy-flow").type(SkillType.PROCEDURE)
+            .domain("ops").summary("Deploy procedure")
+            .visibility(Visibility.parse("public"))
+            .preconditions(List.of("Access to cluster", "Docker image built"))
+            .inputs(List.of("image tag", "namespace"))
+            .expectedOutputs(List.of("Running pods", "Service endpoint"))
+            .verification(List.of("Check pod status", "Verify endpoint"))
+            .build();
+
+        String s = yaml.writeValueAsString(meta);
+        SkillMeta d = yaml.readValue(s, SkillMeta.class);
+        assertThat(d.getPreconditions()).containsExactly("Access to cluster", "Docker image built");
+        assertThat(d.getInputs()).containsExactly("image tag", "namespace");
+        assertThat(d.getExpectedOutputs()).containsExactly("Running pods", "Service endpoint");
+        assertThat(d.getVerification()).containsExactly("Check pod status", "Verify endpoint");
+    }
+
+    @Test
     void shouldHandleProcessingStatus() {
         assertThat(ProcessingStatus.SUBMITTED.canTransitionTo(ProcessingStatus.PARSING)).isTrue();
         assertThat(ProcessingStatus.SUBMITTED.canTransitionTo(ProcessingStatus.COMPLETED)).isFalse();

@@ -8,6 +8,7 @@ import com.zm.skill.domain.ProcessingStatus;
 import com.zm.skill.domain.SkillType;
 import com.zm.skill.domain.Submission;
 import com.zm.skill.parser.ParserFactory;
+import com.zm.skill.service.AuditService;
 import com.zm.skill.service.PipelineResult;
 import com.zm.skill.service.PipelineService;
 import com.zm.skill.service.UrlValidator;
@@ -48,6 +49,9 @@ class SubmissionControllerTest {
 
     @MockBean
     private UrlValidator urlValidator;
+
+    @MockBean
+    private AuditService auditService;
 
     @Test
     void submitFiles_shouldReturnSubmissionId() throws Exception {

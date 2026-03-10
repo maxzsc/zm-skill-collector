@@ -6,6 +6,7 @@ import com.zm.skill.domain.ProcessingStatus;
 import com.zm.skill.domain.Submission;
 import com.zm.skill.parser.DocumentParser;
 import com.zm.skill.parser.ParserFactory;
+import com.zm.skill.service.AuditService;
 import com.zm.skill.service.PipelineResult;
 import com.zm.skill.service.PipelineService;
 import com.zm.skill.service.UrlValidator;
@@ -27,14 +28,22 @@ public class SubmissionController {
     private final PipelineService pipelineService;
     private final ParserFactory parserFactory;
     private final UrlValidator urlValidator;
+    private final AuditService auditService;
+
+    // P1-24: File size and batch limits
+    private static final long MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024; // 20MB
+    private static final int MAX_BATCH_FILES = 50;
+    private static final long MAX_BATCH_SIZE_BYTES = 100L * 1024 * 1024; // 100MB
 
     // Store domain maps for retrieval between submit and confirm
     private final Map<String, List<DomainCluster>> domainMaps = new java.util.concurrent.ConcurrentHashMap<>();
 
-    public SubmissionController(PipelineService pipelineService, ParserFactory parserFactory, UrlValidator urlValidator) {
+    public SubmissionController(PipelineService pipelineService, ParserFactory parserFactory,
+                                UrlValidator urlValidator, AuditService auditService) {
         this.pipelineService = pipelineService;
         this.parserFactory = parserFactory;
         this.urlValidator = urlValidator;
+        this.auditService = auditService;
     }
 
     @PostMapping
@@ -46,6 +55,29 @@ public class SubmissionController {
         if (files == null || files.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("At least one file is required"));
+        }
+
+        // P1-24: Validate batch limits
+        if (files.size() > MAX_BATCH_FILES) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(ErrorCode.BATCH_LIMIT_EXCEEDED,
+                        "Too many files: " + files.size() + ". Maximum is " + MAX_BATCH_FILES));
+        }
+
+        long totalSize = 0;
+        for (MultipartFile file : files) {
+            long fileSize = file.getSize();
+            if (fileSize > MAX_FILE_SIZE_BYTES) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error(ErrorCode.FILE_TOO_LARGE,
+                            "File '" + file.getOriginalFilename() + "' exceeds maximum size of 20MB"));
+            }
+            totalSize += fileSize;
+        }
+        if (totalSize > MAX_BATCH_SIZE_BYTES) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(ErrorCode.BATCH_LIMIT_EXCEEDED,
+                        "Total batch size exceeds maximum of 100MB"));
         }
 
         try {
@@ -85,6 +117,9 @@ public class SubmissionController {
 
             submission.setFileName(files.size() == 1 ? files.get(0).getOriginalFilename() : files.size() + " files");
             submission.setDocumentPaths(new ArrayList<>(documents.keySet()));
+
+            // P1-20: Audit logging
+            auditService.log("submit", submissionId, submission.getFileName());
 
             // P0-3: Single file quick path vs multi-file clustering path
             if (files.size() == 1) {
@@ -130,7 +165,7 @@ public class SubmissionController {
             urlValidator.validate(request.getUrl());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error(ErrorCode.INVALID_URL, e.getMessage()));
         }
 
         return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_IMPLEMENTED)
@@ -177,6 +212,9 @@ public class SubmissionController {
         }
 
         try {
+            // P1-20: Audit logging
+            auditService.log("confirm", id, "clusters confirmed");
+
             // Trigger async generation; client should poll status endpoint
             pipelineService.confirmAndGenerate(id, request.getClusters());
             SubmitResponse response = SubmitResponse.builder()

@@ -63,29 +63,4 @@ public class GitService {
         }
     }
 
-    /**
-     * Stage a specific file and commit with the given message.
-     *
-     * @param relativePath the file path relative to the repository root
-     * @param message the commit message
-     * @return true if a commit was made, false if there was nothing to commit
-     */
-    public boolean commitFile(String relativePath, String message) {
-        try (Git git = Git.open(repoPath.toFile())) {
-            git.add().addFilepattern(relativePath).call();
-
-            Status status = git.status().call();
-            if (status.getAdded().isEmpty() && status.getChanged().isEmpty()) {
-                return false;
-            }
-
-            git.commit()
-                .setMessage(message)
-                .setAuthor("skill-collector", "skill-collector@zm.com")
-                .call();
-            return true;
-        } catch (IOException | GitAPIException e) {
-            throw new RuntimeException("Failed to commit file: " + relativePath, e);
-        }
-    }
 }
