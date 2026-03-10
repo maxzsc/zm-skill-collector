@@ -48,11 +48,12 @@ class PipelineServiceTest {
         DeduplicationService deduplicationService = new DeduplicationService();
         FileSkillRepository repository = new FileSkillRepository(tempDir);
         ParserFactory parserFactory = new ParserFactory();
+        SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService);
 
         pipelineService = new PipelineService(
             classificationService, clusteringService, generationService,
             validationService, deduplicationService, repository,
-            gitService, parserFactory
+            gitService, parserFactory, skillUpdateService
         );
     }
 

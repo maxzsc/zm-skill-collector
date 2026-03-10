@@ -7,20 +7,30 @@ import com.zm.skill.domain.SkillMeta;
 import com.zm.skill.domain.SkillType;
 import com.zm.skill.domain.Visibility;
 import com.zm.skill.storage.FileSkillRepository;
+import com.zm.skill.storage.GitService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 
+@ExtendWith(MockitoExtension.class)
 class FeedbackServiceTest {
 
     @TempDir
     Path tempDir;
+
+    @Mock
+    private GitService gitService;
 
     private FeedbackService feedbackService;
     private FileSkillRepository skillRepository;
@@ -29,7 +39,7 @@ class FeedbackServiceTest {
     void setUp() {
         Path feedbackDir = tempDir.resolve("feedback");
         skillRepository = new FileSkillRepository(tempDir);
-        feedbackService = new FeedbackService(feedbackDir, skillRepository);
+        feedbackService = new FeedbackService(feedbackDir, skillRepository, gitService);
     }
 
     @Test
@@ -127,6 +137,9 @@ class FeedbackServiceTest {
         // Check the skill is marked for review
         var doc = skillRepository.findByName("bad-skill").orElseThrow();
         assertThat(doc.getMeta().getNeedsReview()).isTrue();
+
+        // Verify git commit was made
+        verify(gitService).commitAll("feedback: mark bad-skill as needs-review");
     }
 
     @Test

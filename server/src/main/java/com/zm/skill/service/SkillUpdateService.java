@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Handles skill update strategies:
@@ -20,6 +22,9 @@ public class SkillUpdateService {
 
     private final SkillRepository skillRepository;
     private final SkillGenerationService generationService;
+
+    // P0-9: Domain-level concurrency locks
+    private final ConcurrentHashMap<String, ReentrantLock> domainLocks = new ConcurrentHashMap<>();
 
     public SkillUpdateService(SkillRepository skillRepository, SkillGenerationService generationService) {
         this.skillRepository = skillRepository;
@@ -36,22 +41,28 @@ public class SkillUpdateService {
      * @return the regenerated skill document
      */
     public SkillDocument updateKnowledge(String domain, String fileName, String docContent, Visibility visibility) {
-        // Save the new raw document first
-        skillRepository.saveRaw(domain, SkillType.KNOWLEDGE, fileName, docContent);
+        ReentrantLock lock = getDomainLock(domain);
+        lock.lock();
+        try {
+            // Save the new raw document first
+            skillRepository.saveRaw(domain, SkillType.KNOWLEDGE, fileName, docContent);
 
-        // Load ALL raw docs for this domain (including the one just saved)
-        List<String> allDocs = new ArrayList<>(skillRepository.loadRawDocuments(domain, SkillType.KNOWLEDGE));
+            // Load ALL raw docs for this domain (including the one just saved)
+            List<String> allDocs = new ArrayList<>(skillRepository.loadRawDocuments(domain, SkillType.KNOWLEDGE));
 
-        // Regenerate the knowledge skill from all documents
-        SkillDocument regenerated = generationService.generateKnowledge(domain, allDocs, visibility);
+            // Regenerate the knowledge skill from all documents
+            SkillDocument regenerated = generationService.generateKnowledge(domain, allDocs, visibility);
 
-        // Set last_updated timestamp
-        regenerated.getMeta().setLastUpdated(Instant.now());
+            // Set last_updated timestamp
+            regenerated.getMeta().setLastUpdated(Instant.now());
 
-        // Save the regenerated skill
-        skillRepository.save(regenerated.getMeta(), regenerated.getBody());
+            // Save the regenerated skill
+            skillRepository.save(regenerated.getMeta(), regenerated.getBody());
 
-        return regenerated;
+            return regenerated;
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -64,18 +75,28 @@ public class SkillUpdateService {
      * @return the regenerated skill document
      */
     public SkillDocument updateProcedure(String domain, String fileName, String docContent, Visibility visibility) {
-        // Overwrite the raw document
-        skillRepository.saveRaw(domain, SkillType.PROCEDURE, fileName, docContent);
+        ReentrantLock lock = getDomainLock(domain);
+        lock.lock();
+        try {
+            // Overwrite the raw document
+            skillRepository.saveRaw(domain, SkillType.PROCEDURE, fileName, docContent);
 
-        // Regenerate the procedure skill from the new document
-        SkillDocument regenerated = generationService.generateProcedure(domain, docContent, visibility);
+            // Regenerate the procedure skill from the new document
+            SkillDocument regenerated = generationService.generateProcedure(domain, docContent, visibility);
 
-        // Set last_updated timestamp
-        regenerated.getMeta().setLastUpdated(Instant.now());
+            // Set last_updated timestamp
+            regenerated.getMeta().setLastUpdated(Instant.now());
 
-        // Save the regenerated skill
-        skillRepository.save(regenerated.getMeta(), regenerated.getBody());
+            // Save the regenerated skill
+            skillRepository.save(regenerated.getMeta(), regenerated.getBody());
 
-        return regenerated;
+            return regenerated;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private ReentrantLock getDomainLock(String domain) {
+        return domainLocks.computeIfAbsent(domain, k -> new ReentrantLock());
     }
 }

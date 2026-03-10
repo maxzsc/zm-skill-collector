@@ -37,7 +37,8 @@ class ValidationServiceTest {
             .summary("Test summary")
             .visibility(Visibility.parse("public"))
             .build();
-        SkillDocument doc = new SkillDocument(meta, "# Content\n\nSome body text");
+        // Need at least 50 chars of substantive content for knowledge
+        SkillDocument doc = new SkillDocument(meta, "# Content\n\nSome body text that is long enough to pass the fifty character minimum requirement for knowledge skills.");
 
         ValidationService.ValidationResult result = validationService.validate(doc);
 
@@ -51,13 +52,13 @@ class ValidationServiceTest {
             .name("payment-clearing")
             .type(SkillType.KNOWLEDGE)
             .domain("payment")
-            .summary("清算核心规则")
-            .trigger("用户提到清算、对账时")
-            .aliases(List.of("清算", "结算"))
+            .summary("\u6e05\u7b97\u6838\u5fc3\u89c4\u5219")
+            .trigger("\u7528\u6237\u63d0\u5230\u6e05\u7b97\u3001\u5bf9\u8d26\u65f6")
+            .aliases(List.of("\u6e05\u7b97", "\u7ed3\u7b97"))
             .visibility(Visibility.parse("public"))
             .sources(List.of("arch.md"))
             .build();
-        String body = "# 清算知识\n\n" + "详细内容包含清算规则说明。".repeat(20);
+        String body = "# \u6e05\u7b97\u77e5\u8bc6\n\n" + "\u8be6\u7ec6\u5185\u5bb9\u5305\u542b\u6e05\u7b97\u89c4\u5219\u8bf4\u660e\u3002".repeat(20);
         SkillDocument doc = new SkillDocument(meta, body);
 
         ValidationService.ValidationResult result = validationService.validate(doc);
@@ -72,15 +73,15 @@ class ValidationServiceTest {
             .name("payment-clearing")
             .type(SkillType.KNOWLEDGE)
             .domain("payment")
-            .summary("清算核心规则")
-            .trigger("用户提到清算、对账时")
-            .aliases(List.of("清算", "结算", "清分"))
+            .summary("\u6e05\u7b97\u6838\u5fc3\u89c4\u5219")
+            .trigger("\u7528\u6237\u63d0\u5230\u6e05\u7b97\u3001\u5bf9\u8d26\u65f6")
+            .aliases(List.of("\u6e05\u7b97", "\u7ed3\u7b97", "\u6e05\u5206"))
             .completeness(Completeness.L3)
             .visibility(Visibility.parse("public"))
             .sources(List.of("arch.md", "settlement.md"))
             .relatedSkills(List.of("risk-rules"))
             .build();
-        String longBody = "# 清算知识\n\n" + "详细内容。".repeat(100);
+        String longBody = "# \u6e05\u7b97\u77e5\u8bc6\n\n" + "\u8be6\u7ec6\u5185\u5bb9\u3002".repeat(100);
         SkillDocument doc = new SkillDocument(meta, longBody);
 
         ValidationService.ValidationResult result = validationService.validate(doc);
@@ -97,7 +98,7 @@ class ValidationServiceTest {
             // missing domain
             // missing summary
             .build();
-        SkillDocument doc = new SkillDocument(meta, "body");
+        SkillDocument doc = new SkillDocument(meta, "body with enough content to pass the fifty character substantive content check for knowledge");
 
         ValidationService.ValidationResult result = validationService.validate(doc);
 
@@ -114,7 +115,7 @@ class ValidationServiceTest {
             .summary("x".repeat(51))
             .visibility(Visibility.parse("public"))
             .build();
-        SkillDocument doc = new SkillDocument(meta, "body");
+        SkillDocument doc = new SkillDocument(meta, "body with enough content to pass the fifty character substantive content check for knowledge");
 
         ValidationService.ValidationResult result = validationService.validate(doc);
 
@@ -132,7 +133,7 @@ class ValidationServiceTest {
             .trigger("x".repeat(101))
             .visibility(Visibility.parse("public"))
             .build();
-        SkillDocument doc = new SkillDocument(meta, "body");
+        SkillDocument doc = new SkillDocument(meta, "body with enough content to pass the fifty character substantive content check for knowledge");
 
         ValidationService.ValidationResult result = validationService.validate(doc);
 
@@ -150,7 +151,7 @@ class ValidationServiceTest {
             .aliases(List.of("1","2","3","4","5","6","7","8","9","10","11"))
             .visibility(Visibility.parse("public"))
             .build();
-        SkillDocument doc = new SkillDocument(meta, "body");
+        SkillDocument doc = new SkillDocument(meta, "body with enough content to pass the fifty character substantive content check for knowledge");
 
         ValidationService.ValidationResult result = validationService.validate(doc);
 
@@ -181,12 +182,12 @@ class ValidationServiceTest {
             .name("payment-clearing")
             .type(SkillType.KNOWLEDGE)
             .domain("payment")
-            .summary("清算核心规则")
-            .trigger("用户提到清算时")
-            .aliases(List.of("清算"))
+            .summary("\u6e05\u7b97\u6838\u5fc3\u89c4\u5219")
+            .trigger("\u7528\u6237\u63d0\u5230\u6e05\u7b97\u65f6")
+            .aliases(List.of("\u6e05\u7b97"))
             .visibility(Visibility.parse("public"))
             .build();
-        SkillDocument doc = new SkillDocument(meta, "# 清算\n\n清算采用T+1模式");
+        SkillDocument doc = new SkillDocument(meta, "# \u6e05\u7b97\n\n\u6e05\u7b97\u91c7\u7528T+1\u6a21\u5f0f\uff0c\u8fd9\u662f\u4e00\u4e2a\u975e\u5e38\u91cd\u8981\u7684\u89c4\u5219\uff0c\u9700\u8981\u8be6\u7ec6\u4e86\u89e3\u5176\u4e2d\u7684\u5404\u4e2a\u73af\u8282\u548c\u6d41\u7a0b");
 
         String aiResponse = """
             {
@@ -209,11 +210,11 @@ class ValidationServiceTest {
             .name("refund-flow")
             .type(SkillType.PROCEDURE)
             .domain("payment")
-            .summary("退款流程")
-            .trigger("执行退款时")
+            .summary("\u9000\u6b3e\u6d41\u7a0b")
+            .trigger("\u6267\u884c\u9000\u6b3e\u65f6")
             .visibility(Visibility.parse("public"))
             .build();
-        SkillDocument doc = new SkillDocument(meta, "# 退款\n\n## 步骤\n1. 开工单\n2. 验证金额");
+        SkillDocument doc = new SkillDocument(meta, "# \u9000\u6b3e\n\n## \u6b65\u9aa4\n1. \u5f00\u5de5\u5355\n2. \u9a8c\u8bc1\u91d1\u989d");
 
         String aiResponse = """
             {
@@ -229,5 +230,75 @@ class ValidationServiceTest {
         assertThat(result.getAiScore()).isEqualTo(0.78);
         assertThat(result.isAiPassed()).isTrue();
         assertThat(result.getAiIssues()).contains("Missing rollback section");
+    }
+
+    // P0-14: Deterministic validation tests
+
+    @Test
+    void shouldFailKnowledgeWithInsufficientSubstantiveContent() {
+        SkillMeta meta = SkillMeta.builder()
+            .name("test-skill")
+            .type(SkillType.KNOWLEDGE)
+            .domain("test")
+            .summary("Test summary")
+            .visibility(Visibility.parse("public"))
+            .build();
+        // Body has headers/formatting but < 50 chars of actual content
+        SkillDocument doc = new SkillDocument(meta, "# Title\n\n## Section\n\n- Short");
+
+        ValidationService.ValidationResult result = validationService.validate(doc);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getErrors()).anyMatch(e -> e.contains("substantive content"));
+    }
+
+    @Test
+    void shouldFailProcedureWithoutSectionMarkers() {
+        SkillMeta meta = SkillMeta.builder()
+            .name("test-procedure")
+            .type(SkillType.PROCEDURE)
+            .domain("test")
+            .summary("Test procedure")
+            .visibility(Visibility.parse("public"))
+            .build();
+        // Body without any required section markers
+        SkillDocument doc = new SkillDocument(meta, "# Some Procedure\n\nDo something then do something else and keep going until done");
+
+        ValidationService.ValidationResult result = validationService.validate(doc);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getErrors()).anyMatch(e -> e.contains("section marker"));
+    }
+
+    @Test
+    void shouldPassProcedureWithChineseSectionMarkers() {
+        SkillMeta meta = SkillMeta.builder()
+            .name("test-procedure")
+            .type(SkillType.PROCEDURE)
+            .domain("test")
+            .summary("Test procedure")
+            .visibility(Visibility.parse("public"))
+            .build();
+        SkillDocument doc = new SkillDocument(meta, "# \u64cd\u4f5c\u6d41\u7a0b\n\n## \u524d\u7f6e\u6761\u4ef6\n- \u6743\u9650\n\n## \u6b65\u9aa4\n1. \u6267\u884c");
+
+        ValidationService.ValidationResult result = validationService.validate(doc);
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    void shouldPassProcedureWithEnglishSectionMarkers() {
+        SkillMeta meta = SkillMeta.builder()
+            .name("test-procedure")
+            .type(SkillType.PROCEDURE)
+            .domain("test")
+            .summary("Test procedure")
+            .visibility(Visibility.parse("public"))
+            .build();
+        SkillDocument doc = new SkillDocument(meta, "# Deploy Process\n\n## Precondition\n- Access\n\n## Steps\n1. Do it");
+
+        ValidationService.ValidationResult result = validationService.validate(doc);
+
+        assertThat(result.isValid()).isTrue();
     }
 }

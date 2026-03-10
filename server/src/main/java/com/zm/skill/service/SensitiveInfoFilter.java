@@ -15,6 +15,12 @@ import java.util.regex.Pattern;
  * - Credentials and tokens (api_key, password, secret, access_token)
  * - Internal URLs (private IPs, .internal hostnames)
  * - Cloud access keys (AWS keys)
+ * - China mobile phone numbers
+ * - China ID card numbers
+ * - Email addresses
+ * - Bank card numbers (16-19 digits)
+ * - JWT tokens
+ * - Private keys (PEM format)
  */
 @Component
 public class SensitiveInfoFilter {
@@ -22,6 +28,12 @@ public class SensitiveInfoFilter {
     private static final String FILTERED = "{FILTERED}";
 
     private static final List<Pattern> PATTERNS = List.of(
+        // Private keys (PEM format) - must be before other patterns due to multiline
+        Pattern.compile("-----BEGIN\\s+(?:RSA\\s+|EC\\s+)?PRIVATE\\s+KEY-----[\\s\\S]*?-----END\\s+(?:RSA\\s+|EC\\s+)?PRIVATE\\s+KEY-----"),
+
+        // JWT tokens
+        Pattern.compile("eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]+"),
+
         // Database connection strings (must be before IP pattern)
         Pattern.compile("(?:jdbc:[a-z]+://|mongodb(?:\\+srv)?://)[^\\s]+", Pattern.CASE_INSENSITIVE),
 
@@ -39,6 +51,18 @@ public class SensitiveInfoFilter {
 
         // Generic credentials (api_key, password, secret, token, etc.)
         Pattern.compile("(?:api[_-]?key|apikey|access[_-]?token|password|secret[_-]?key|auth[_-]?token)\\s*[=:]\\s*\\S+", Pattern.CASE_INSENSITIVE),
+
+        // China ID card (18 digits, last may be X/x) - must be before bank card pattern
+        Pattern.compile("(?<!\\d)\\d{17}[\\dXx](?!\\d)"),
+
+        // Bank card numbers (16-19 digits)
+        Pattern.compile("(?<!\\d)\\d{16,19}(?!\\d)"),
+
+        // China mobile phone numbers
+        Pattern.compile("(?<!\\d)1[3-9]\\d{9}(?!\\d)"),
+
+        // Email addresses
+        Pattern.compile("[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}"),
 
         // Private IP addresses with optional port (standalone, not in URLs)
         Pattern.compile("(?:10\\.|172\\.(?:1[6-9]|2\\d|3[01])\\.|192\\.168\\.)\\d{1,3}\\.?\\d{0,3}(?::\\d+)?")

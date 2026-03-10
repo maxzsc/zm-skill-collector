@@ -29,7 +29,10 @@ public final class VisibilityFilter {
      */
     public static List<SkillMeta> filter(List<SkillMeta> skills, List<String> teams) {
         if (teams == null || teams.isEmpty()) {
-            return skills;
+            // When no teams provided, only return public skills (not team-scoped ones)
+            return skills.stream()
+                .filter(meta -> meta.getVisibility() == null || meta.getVisibility().isPublic())
+                .collect(Collectors.toList());
         }
 
         Set<String> teamSet = new HashSet<>(teams);

@@ -63,7 +63,7 @@ class VisibilityFilterTest {
     }
 
     @Test
-    void shouldReturnAllWhenNoTeamsProvided() {
+    void shouldReturnOnlyPublicWhenNoTeamsProvided() {
         List<SkillMeta> skills = List.of(
             SkillMeta.builder().name("public-skill").type(SkillType.KNOWLEDGE).domain("test")
                 .visibility(Visibility.parse("public")).build(),
@@ -71,13 +71,14 @@ class VisibilityFilterTest {
                 .visibility(Visibility.parse("team:backend")).build()
         );
 
-        // Null teams -> no filtering
+        // Null teams -> only public skills returned (P0-4 fix)
         List<SkillMeta> result = VisibilityFilter.filter(skills, null);
-        assertThat(result).hasSize(2);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("public-skill");
     }
 
     @Test
-    void shouldReturnAllWhenEmptyTeamsList() {
+    void shouldReturnOnlyPublicWhenEmptyTeamsList() {
         List<SkillMeta> skills = List.of(
             SkillMeta.builder().name("public-skill").type(SkillType.KNOWLEDGE).domain("test")
                 .visibility(Visibility.parse("public")).build(),
@@ -85,9 +86,10 @@ class VisibilityFilterTest {
                 .visibility(Visibility.parse("team:backend")).build()
         );
 
-        // Empty teams list -> no filtering
+        // Empty teams list -> only public skills returned (P0-4 fix)
         List<SkillMeta> result = VisibilityFilter.filter(skills, List.of());
-        assertThat(result).hasSize(2);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("public-skill");
     }
 
     @Test
@@ -117,6 +119,17 @@ class VisibilityFilterTest {
 
         List<SkillMeta> result = VisibilityFilter.filter(skills, List.of("backend"));
         // Null visibility treated as public -> included
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void shouldReturnNullVisibilityWhenNoTeams() {
+        List<SkillMeta> skills = List.of(
+            SkillMeta.builder().name("no-vis").type(SkillType.KNOWLEDGE).domain("test").build()
+        );
+
+        // Null visibility treated as public, and null teams -> only public returned
+        List<SkillMeta> result = VisibilityFilter.filter(skills, null);
         assertThat(result).hasSize(1);
     }
 }

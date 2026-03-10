@@ -10,6 +10,7 @@ import com.zm.skill.domain.Submission;
 import com.zm.skill.parser.ParserFactory;
 import com.zm.skill.service.PipelineResult;
 import com.zm.skill.service.PipelineService;
+import com.zm.skill.service.UrlValidator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -20,10 +21,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -43,6 +46,9 @@ class SubmissionControllerTest {
     @MockBean
     private ParserFactory parserFactory;
 
+    @MockBean
+    private UrlValidator urlValidator;
+
     @Test
     void submitFiles_shouldReturnSubmissionId() throws Exception {
         // ParserFactory returns a parser that just returns the text as-is
@@ -56,16 +62,21 @@ class SubmissionControllerTest {
         };
         when(parserFactory.getParser(any(String.class))).thenReturn(mockParser);
 
-        List<DomainCluster> clusters = List.of(
-                DomainCluster.builder()
-                        .domain("payment")
-                        .confidence(0.9)
-                        .documents(List.of("test.md"))
-                        .suggestedType(SkillType.KNOWLEDGE)
-                        .summaryPreview("Payment clearing")
-                        .build()
-        );
-        when(pipelineService.submitAndScan(any(Submission.class), anyMap())).thenReturn(clusters);
+        // P0-10: findByIdempotencyKey returns empty (no duplicate)
+        when(pipelineService.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+
+        // P0-3: Single file goes through submitSingle
+        PipelineResult singleResult = PipelineResult.builder()
+                .skillName("payment-clearing")
+                .domain("payment")
+                .success(true)
+                .build();
+        when(pipelineService.submitSingle(any(Submission.class), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    Submission sub = invocation.getArgument(0);
+                    sub.setStatus(ProcessingStatus.COMPLETED);
+                    return singleResult;
+                });
 
         MockMultipartFile file = new MockMultipartFile(
                 "files", "test.md", "text/markdown", "# Payment\n\nClearing rules".getBytes());
@@ -78,6 +89,49 @@ class SubmissionControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.submissionId").isNotEmpty())
                 .andExpect(jsonPath("$.data.status").isNotEmpty());
+    }
+
+    @Test
+    void submitMultipleFiles_shouldReturnAwaitingConfirmation() throws Exception {
+        com.zm.skill.parser.DocumentParser mockParser = new com.zm.skill.parser.DocumentParser() {
+            @Override
+            public String parse(String content) { return content; }
+            @Override
+            public String parseFile(java.io.InputStream is) {
+                try { return new String(is.readAllBytes()); } catch (Exception e) { return ""; }
+            }
+        };
+        when(parserFactory.getParser(any(String.class))).thenReturn(mockParser);
+        when(pipelineService.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+
+        List<DomainCluster> clusters = List.of(
+                DomainCluster.builder()
+                        .domain("payment")
+                        .confidence(0.9)
+                        .documents(List.of("test1.md", "test2.md"))
+                        .suggestedType(SkillType.KNOWLEDGE)
+                        .summaryPreview("Payment clearing")
+                        .build()
+        );
+        when(pipelineService.submitAndScan(any(Submission.class), anyMap())).thenAnswer(invocation -> {
+            Submission sub = invocation.getArgument(0);
+            sub.setStatus(ProcessingStatus.AWAITING_CONFIRMATION);
+            return clusters;
+        });
+
+        MockMultipartFile file1 = new MockMultipartFile(
+                "files", "test1.md", "text/markdown", "# Payment 1\n\nContent".getBytes());
+        MockMultipartFile file2 = new MockMultipartFile(
+                "files", "test2.md", "text/markdown", "# Payment 2\n\nContent".getBytes());
+
+        mockMvc.perform(multipart("/api/submissions")
+                        .file(file1)
+                        .file(file2)
+                        .param("description", "test upload"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.submissionId").isNotEmpty())
+                .andExpect(jsonPath("$.data.status").value("awaiting_confirmation"));
     }
 
     @Test

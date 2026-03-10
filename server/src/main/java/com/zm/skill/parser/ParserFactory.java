@@ -1,10 +1,13 @@
 package com.zm.skill.parser;
 
+import org.springframework.stereotype.Component;
+
 import java.util.Map;
 
 /**
  * Factory that selects the appropriate DocumentParser based on file extension.
  */
+@Component
 public class ParserFactory {
 
     private final Map<String, DocumentParser> parsers = Map.of(

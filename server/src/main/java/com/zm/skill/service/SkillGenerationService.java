@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Generates structured skills from documents using AI.
@@ -41,7 +42,11 @@ public class SkillGenerationService {
      * Generate a knowledge skill by aggregating multiple documents.
      */
     public SkillDocument generateKnowledge(String domain, List<String> documentTexts, Visibility visibility) {
-        String prompt = KnowledgePrompt.build(domain, documentTexts);
+        // Wrap each document in XML tags for prompt injection protection
+        List<String> wrappedDocs = documentTexts.stream()
+            .map(SkillGenerationService::wrapUserDocument)
+            .collect(Collectors.toList());
+        String prompt = KnowledgePrompt.build(domain, wrappedDocs);
         String aiResponse = claudeClient.generate(prompt);
         return parseAndBuildSkill(aiResponse, domain, SkillType.KNOWLEDGE, visibility);
     }
@@ -50,9 +55,18 @@ public class SkillGenerationService {
      * Generate a procedure skill from a single document.
      */
     public SkillDocument generateProcedure(String domain, String documentText, Visibility visibility) {
-        String prompt = ProcedurePrompt.build(domain, documentText);
+        // Wrap document in XML tags for prompt injection protection
+        String wrappedDoc = wrapUserDocument(documentText);
+        String prompt = ProcedurePrompt.build(domain, wrappedDoc);
         String aiResponse = claudeClient.generate(prompt);
         return parseAndBuildSkill(aiResponse, domain, SkillType.PROCEDURE, visibility);
+    }
+
+    /**
+     * Wrap user-provided document content in XML tags to prevent prompt injection.
+     */
+    static String wrapUserDocument(String content) {
+        return "<user_document>\n" + content + "\n</user_document>";
     }
 
     private SkillDocument parseAndBuildSkill(String aiResponse, String domain, SkillType type, Visibility visibility) {

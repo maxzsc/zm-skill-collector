@@ -23,4 +23,12 @@ public class Submission {
     private Instant createdAt = Instant.now();
     private Instant updatedAt;
     private String errorMessage;
+
+    // P0-7: Failure recovery
+    @Builder.Default
+    private int retryCount = 0;
+    public static final int MAX_RETRIES = 3;
+
+    // P0-10: Idempotency
+    private String idempotencyKey;
 }

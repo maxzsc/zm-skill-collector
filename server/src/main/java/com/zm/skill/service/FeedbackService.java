@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zm.skill.domain.Feedback;
+import com.zm.skill.storage.GitService;
 import com.zm.skill.storage.SkillDocument;
 import com.zm.skill.storage.SkillRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,14 +25,17 @@ public class FeedbackService {
 
     private final Path feedbackDir;
     private final SkillRepository skillRepository;
+    private final GitService gitService;
     private final ObjectMapper objectMapper;
 
     public FeedbackService(
         @Value("${skill-collector.storage.base-path:./skill-repo}/feedback") Path feedbackDir,
-        SkillRepository skillRepository
+        SkillRepository skillRepository,
+        GitService gitService
     ) {
         this.feedbackDir = feedbackDir;
         this.skillRepository = skillRepository;
+        this.gitService = gitService;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
     }
@@ -119,6 +123,7 @@ public class FeedbackService {
                 if (!Boolean.TRUE.equals(doc.getMeta().getNeedsReview())) {
                     doc.getMeta().setNeedsReview(true);
                     skillRepository.save(doc.getMeta(), doc.getBody());
+                    gitService.commitAll("feedback: mark " + skillName + " as needs-review");
                 }
             });
         }

@@ -70,6 +70,26 @@ public class ValidationService {
             errors.add("Length constraint: aliases must be <= 10 items");
         }
 
+        // P0-14: Deterministic content structure checks
+        if (doc.getBody() != null && !doc.getBody().isBlank()) {
+            if (meta.getType() == SkillType.KNOWLEDGE) {
+                // Knowledge: body must contain at least 50 chars of substantive content
+                String strippedBody = doc.getBody().replaceAll("[#\\-*>\\s]+", "");
+                if (strippedBody.length() < 50) {
+                    errors.add("Content check: knowledge body must contain at least 50 characters of substantive content");
+                }
+            } else if (meta.getType() == SkillType.PROCEDURE) {
+                // Procedure: body must contain at least one section marker
+                String body = doc.getBody();
+                boolean hasMarker = body.contains("\u6b65\u9aa4") || body.contains("\u524d\u7f6e")
+                    || body.contains("\u9a8c\u8bc1") || body.toLowerCase().contains("step")
+                    || body.toLowerCase().contains("precondition");
+                if (!hasMarker) {
+                    errors.add("Content check: procedure body must contain at least one section marker (\u6b65\u9aa4/\u524d\u7f6e/\u9a8c\u8bc1/step/precondition)");
+                }
+            }
+        }
+
         result.setErrors(errors);
         result.setValid(errors.isEmpty());
 

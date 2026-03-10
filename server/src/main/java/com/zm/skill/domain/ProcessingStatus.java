@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 import java.util.Set;
 import java.util.Map;
+import java.util.HashMap;
 
 public enum ProcessingStatus {
     SUBMITTED("submitted"),
@@ -16,22 +17,29 @@ public enum ProcessingStatus {
     VALIDATING("validating"),
     DEDUP_CHECK("dedup_check"),
     COMPLETED("completed"),
+    PARTIALLY_COMPLETED("partially_completed"),
+    REVIEW_REQUIRED("review_required"),
     FAILED("failed");
 
     private final String value;
 
-    private static final Map<ProcessingStatus, Set<ProcessingStatus>> VALID_TRANSITIONS = Map.of(
-        SUBMITTED, Set.of(PARSING, FAILED),
-        PARSING, Set.of(CLASSIFYING, FAILED),
-        CLASSIFYING, Set.of(CLUSTERING, GENERATING, FAILED),
-        CLUSTERING, Set.of(AWAITING_CONFIRMATION, FAILED),
-        AWAITING_CONFIRMATION, Set.of(GENERATING, FAILED),
-        GENERATING, Set.of(VALIDATING, FAILED),
-        VALIDATING, Set.of(DEDUP_CHECK, FAILED),
-        DEDUP_CHECK, Set.of(COMPLETED, FAILED),
-        COMPLETED, Set.of(),
-        FAILED, Set.of(SUBMITTED)
-    );
+    private static final Map<ProcessingStatus, Set<ProcessingStatus>> VALID_TRANSITIONS;
+
+    static {
+        VALID_TRANSITIONS = new HashMap<>();
+        VALID_TRANSITIONS.put(SUBMITTED, Set.of(PARSING, FAILED));
+        VALID_TRANSITIONS.put(PARSING, Set.of(CLASSIFYING, FAILED));
+        VALID_TRANSITIONS.put(CLASSIFYING, Set.of(CLUSTERING, GENERATING, FAILED));
+        VALID_TRANSITIONS.put(CLUSTERING, Set.of(AWAITING_CONFIRMATION, FAILED));
+        VALID_TRANSITIONS.put(AWAITING_CONFIRMATION, Set.of(GENERATING, FAILED));
+        VALID_TRANSITIONS.put(GENERATING, Set.of(VALIDATING, FAILED, REVIEW_REQUIRED));
+        VALID_TRANSITIONS.put(VALIDATING, Set.of(DEDUP_CHECK, FAILED, REVIEW_REQUIRED));
+        VALID_TRANSITIONS.put(DEDUP_CHECK, Set.of(COMPLETED, PARTIALLY_COMPLETED, FAILED));
+        VALID_TRANSITIONS.put(COMPLETED, Set.of());
+        VALID_TRANSITIONS.put(PARTIALLY_COMPLETED, Set.of());
+        VALID_TRANSITIONS.put(REVIEW_REQUIRED, Set.of(GENERATING, FAILED));
+        VALID_TRANSITIONS.put(FAILED, Set.of(SUBMITTED));
+    }
 
     ProcessingStatus(String value) {
         this.value = value;

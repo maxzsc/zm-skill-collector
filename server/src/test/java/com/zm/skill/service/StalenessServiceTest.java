@@ -4,10 +4,14 @@ import com.zm.skill.domain.SkillMeta;
 import com.zm.skill.domain.SkillType;
 import com.zm.skill.domain.Visibility;
 import com.zm.skill.storage.FileSkillRepository;
+import com.zm.skill.storage.GitService;
 import com.zm.skill.storage.SkillDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.file.Path;
 import java.time.Instant;
@@ -15,10 +19,14 @@ import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ExtendWith(MockitoExtension.class)
 class StalenessServiceTest {
 
     @TempDir
     Path tempDir;
+
+    @Mock
+    private GitService gitService;
 
     private FileSkillRepository repository;
     private StalenessService stalenessService;
@@ -26,7 +34,7 @@ class StalenessServiceTest {
     @BeforeEach
     void setUp() {
         repository = new FileSkillRepository(tempDir);
-        stalenessService = new StalenessService(repository, 6);
+        stalenessService = new StalenessService(repository, gitService, 6);
     }
 
     @Test
@@ -97,8 +105,8 @@ class StalenessServiceTest {
         SkillDocument doc = repository.findByName("stale-warning-skill").orElseThrow();
         String decorated = stalenessService.decorateBody(doc);
 
-        assertThat(decorated).startsWith("⚠ 此 skill 最后更新于");
-        assertThat(decorated).contains("个月前，内容可能已过时，请注意验证");
+        assertThat(decorated).startsWith("\u26a0 \u6b64 skill \u6700\u540e\u66f4\u65b0\u4e8e");
+        assertThat(decorated).contains("\u4e2a\u6708\u524d\uff0c\u5185\u5bb9\u53ef\u80fd\u5df2\u8fc7\u65f6\uff0c\u8bf7\u6ce8\u610f\u9a8c\u8bc1");
         assertThat(decorated).contains("# Content Body");
     }
 
@@ -122,7 +130,7 @@ class StalenessServiceTest {
 
     @Test
     void shouldUseConfiguredThreshold() {
-        StalenessService customService = new StalenessService(repository, 3);
+        StalenessService customService = new StalenessService(repository, gitService, 3);
         Instant fourMonthsAgo = Instant.now().minus(120, ChronoUnit.DAYS);
         SkillMeta meta = SkillMeta.builder()
             .name("threshold-skill")

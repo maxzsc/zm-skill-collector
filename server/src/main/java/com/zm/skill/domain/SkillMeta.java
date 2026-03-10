@@ -47,6 +47,10 @@ public class SkillMeta {
     @JsonProperty("needs_review")
     private Boolean needsReview;
 
+    @JsonProperty("schema_version")
+    @Builder.Default
+    private int schemaVersion = 1;
+
     // Validation methods
     public static boolean isValidSummary(String summary) {
         return summary != null && summary.length() <= 50;

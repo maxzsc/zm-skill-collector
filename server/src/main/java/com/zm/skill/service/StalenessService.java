@@ -1,6 +1,7 @@
 package com.zm.skill.service;
 
 import com.zm.skill.domain.SkillMeta;
+import com.zm.skill.storage.GitService;
 import com.zm.skill.storage.SkillDocument;
 import com.zm.skill.storage.SkillRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,13 +20,16 @@ import java.util.List;
 public class StalenessService {
 
     private final SkillRepository skillRepository;
+    private final GitService gitService;
     private final int thresholdMonths;
 
     public StalenessService(
         SkillRepository skillRepository,
+        GitService gitService,
         @Value("${skill-collector.staleness.threshold-months:6}") int thresholdMonths
     ) {
         this.skillRepository = skillRepository;
+        this.gitService = gitService;
         this.thresholdMonths = thresholdMonths;
     }
 
@@ -37,6 +41,7 @@ public class StalenessService {
     public void scanForStaleSkills() {
         List<SkillMeta> allSkills = skillRepository.loadIndex();
         Instant threshold = Instant.now().minus(thresholdMonths * 30L, ChronoUnit.DAYS);
+        boolean anyChanged = false;
 
         for (SkillMeta meta : allSkills) {
             skillRepository.findByName(meta.getName()).ifPresent(doc -> {
@@ -50,6 +55,8 @@ public class StalenessService {
                 }
             });
         }
+
+        gitService.commitAll("lifecycle: update staleness markers");
     }
 
     /**
@@ -62,7 +69,7 @@ public class StalenessService {
 
         long monthsAgo = computeMonthsAgo(doc.getMeta().getLastUpdated());
         String warning = String.format(
-            "⚠ 此 skill 最后更新于 %d 个月前，内容可能已过时，请注意验证\n\n",
+            "\u26a0 \u6b64 skill \u6700\u540e\u66f4\u65b0\u4e8e %d \u4e2a\u6708\u524d\uff0c\u5185\u5bb9\u53ef\u80fd\u5df2\u8fc7\u65f6\uff0c\u8bf7\u6ce8\u610f\u9a8c\u8bc1\n\n",
             monthsAgo
         );
         return warning + doc.getBody();
