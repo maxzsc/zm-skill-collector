@@ -46,4 +46,9 @@ public interface SkillRepository {
      * Load all raw documents for a given domain and type.
      */
     List<String> loadRawDocuments(String domain, SkillType type);
+
+    /**
+     * QA-008: Clear all files in the raw directory for a given domain, type, and skill name.
+     */
+    void clearRawDirectory(String domain, SkillType type, String skillName);
 }

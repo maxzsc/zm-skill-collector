@@ -54,7 +54,7 @@ public class SubmissionController {
     ) {
         if (files == null || files.isEmpty()) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("At least one file is required"));
+                    .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED, "At least one file is required"));
         }
 
         // P1-24: Validate batch limits
@@ -95,31 +95,40 @@ public class SubmissionController {
             // P0-10: Compute idempotency key from file contents
             String idempotencyKey = computeIdempotencyKey(documents.values());
 
-            // Check if a submission with the same key already exists
-            Optional<Submission> existing = pipelineService.findByIdempotencyKey(idempotencyKey);
-            if (existing.isPresent()) {
-                Submission existingSub = existing.get();
+            // QA-003: Use atomic getOrCreateSubmission to eliminate race condition
+            final Map<String, String> finalDocuments = documents;
+            final List<MultipartFile> finalFiles = files;
+            final String finalDescription = description;
+            final String finalSeedDomain = seedDomain;
+
+            // Track whether we created a new submission or found an existing one
+            boolean[] isNew = {false};
+            Submission submission = pipelineService.getOrCreateSubmission(idempotencyKey, () -> {
+                isNew[0] = true;
+                String submissionId = UUID.randomUUID().toString();
+                Submission sub = Submission.builder()
+                        .id(submissionId)
+                        .description(finalDescription)
+                        .seedDomain(finalSeedDomain)
+                        .status(ProcessingStatus.SUBMITTED)
+                        .idempotencyKey(idempotencyKey)
+                        .build();
+                sub.setFileName(finalFiles.size() == 1 ? finalFiles.get(0).getOriginalFilename() : finalFiles.size() + " files");
+                sub.setDocumentPaths(new ArrayList<>(finalDocuments.keySet()));
+                return sub;
+            });
+
+            if (!isNew[0]) {
+                // Existing submission found
                 SubmitResponse response = SubmitResponse.builder()
-                        .submissionId(existingSub.getId())
-                        .status(existingSub.getStatus().getValue())
+                        .submissionId(submission.getId())
+                        .status(submission.getStatus().getValue())
                         .build();
                 return ResponseEntity.ok(ApiResponse.ok(response));
             }
 
-            String submissionId = UUID.randomUUID().toString();
-            Submission submission = Submission.builder()
-                    .id(submissionId)
-                    .description(description)
-                    .seedDomain(seedDomain)
-                    .status(ProcessingStatus.SUBMITTED)
-                    .idempotencyKey(idempotencyKey)
-                    .build();
-
-            submission.setFileName(files.size() == 1 ? files.get(0).getOriginalFilename() : files.size() + " files");
-            submission.setDocumentPaths(new ArrayList<>(documents.keySet()));
-
             // P1-20: Audit logging
-            auditService.log("submit", submissionId, submission.getFileName());
+            auditService.log("submit", submission.getId(), submission.getFileName());
 
             // P0-3: Single file quick path vs multi-file clustering path
             if (files.size() == 1) {
@@ -128,17 +137,17 @@ public class SubmissionController {
                 PipelineResult result = pipelineService.submitSingle(submission, fileName, text);
 
                 SubmitResponse response = SubmitResponse.builder()
-                        .submissionId(submissionId)
+                        .submissionId(submission.getId())
                         .status(submission.getStatus().getValue())
                         .build();
 
                 return ResponseEntity.ok(ApiResponse.ok(response));
             } else {
                 List<DomainCluster> clusters = pipelineService.submitAndScan(submission, documents);
-                domainMaps.put(submissionId, clusters);
+                domainMaps.put(submission.getId(), clusters);
 
                 SubmitResponse response = SubmitResponse.builder()
-                        .submissionId(submissionId)
+                        .submissionId(submission.getId())
                         .status(submission.getStatus().getValue())
                         .build();
 
@@ -146,13 +155,13 @@ public class SubmissionController {
             }
         } catch (IOException e) {
             return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Failed to read uploaded file: " + e.getMessage()));
+                    .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR, "Failed to read uploaded file: " + e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Processing failed: " + e.getMessage()));
+                    .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR, "Processing failed: " + e.getMessage()));
         }
     }
 
@@ -169,7 +178,7 @@ public class SubmissionController {
         }
 
         return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_IMPLEMENTED)
-                .body(ApiResponse.error("\u8bed\u96c0\u5bfc\u5165\u529f\u80fd\u5c1a\u672a\u5b9e\u73b0"));
+                .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR, "\u8bed\u96c0\u5bfc\u5165\u529f\u80fd\u5c1a\u672a\u5b9e\u73b0"));
     }
 
     @GetMapping("/{id}/status")
@@ -224,10 +233,10 @@ public class SubmissionController {
             return ResponseEntity.accepted().body(ApiResponse.ok(response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Generation failed: " + e.getMessage()));
+                    .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR, "Generation failed: " + e.getMessage()));
         }
     }
 

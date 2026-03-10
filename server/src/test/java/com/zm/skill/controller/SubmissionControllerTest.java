@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,8 +67,12 @@ class SubmissionControllerTest {
         };
         when(parserFactory.getParser(any(String.class))).thenReturn(mockParser);
 
-        // P0-10: findByIdempotencyKey returns empty (no duplicate)
-        when(pipelineService.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        // QA-003: getOrCreateSubmission invokes the supplier (new submission)
+        when(pipelineService.getOrCreateSubmission(anyString(), any(Supplier.class)))
+                .thenAnswer(invocation -> {
+                    Supplier<Submission> supplier = invocation.getArgument(1);
+                    return supplier.get();
+                });
 
         // P0-3: Single file goes through submitSingle
         PipelineResult singleResult = PipelineResult.builder()
@@ -106,7 +111,13 @@ class SubmissionControllerTest {
             }
         };
         when(parserFactory.getParser(any(String.class))).thenReturn(mockParser);
-        when(pipelineService.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+
+        // QA-003: getOrCreateSubmission invokes the supplier
+        when(pipelineService.getOrCreateSubmission(anyString(), any(Supplier.class)))
+                .thenAnswer(invocation -> {
+                    Supplier<Submission> supplier = invocation.getArgument(1);
+                    return supplier.get();
+                });
 
         List<DomainCluster> clusters = List.of(
                 DomainCluster.builder()

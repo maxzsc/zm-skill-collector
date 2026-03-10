@@ -2,6 +2,8 @@ package com.zm.skill.controller;
 
 import com.zm.skill.controller.dto.ApiResponse;
 import com.zm.skill.domain.SkillMeta;
+import com.zm.skill.service.ReleaseService;
+import com.zm.skill.service.StalenessService;
 import com.zm.skill.service.VisibilityFilter;
 import com.zm.skill.storage.SkillDocument;
 import com.zm.skill.storage.SkillRepository;
@@ -13,16 +15,21 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/skills")
+@RequestMapping("/api")
 public class SkillController {
 
     private final SkillRepository skillRepository;
+    private final StalenessService stalenessService;
+    private final ReleaseService releaseService;
 
-    public SkillController(SkillRepository skillRepository) {
+    public SkillController(SkillRepository skillRepository, StalenessService stalenessService,
+                           ReleaseService releaseService) {
         this.skillRepository = skillRepository;
+        this.stalenessService = stalenessService;
+        this.releaseService = releaseService;
     }
 
-    @GetMapping
+    @GetMapping("/skills")
     public ResponseEntity<ApiResponse<List<SkillMeta>>> listSkills(
             @RequestParam(required = false) String domain,
             @RequestParam(required = false) String team,
@@ -45,22 +52,47 @@ public class SkillController {
         return ResponseEntity.ok(ApiResponse.ok(filtered));
     }
 
-    @GetMapping("/{name}")
-    public ResponseEntity<ApiResponse<SkillDocument>> getSkill(@PathVariable String name) {
+    @GetMapping("/skills/{name}")
+    public ResponseEntity<ApiResponse<SkillDocument>> getSkill(
+            @PathVariable String name,
+            @RequestParam(required = false) List<String> teams
+    ) {
         Optional<SkillDocument> skill = skillRepository.findByName(name);
         if (skill.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(ApiResponse.ok(skill.get()));
+
+        SkillDocument doc = skill.get();
+
+        // QA-002: Visibility check — same logic as list/index
+        List<SkillMeta> singleList = List.of(doc.getMeta());
+        List<SkillMeta> visible = VisibilityFilter.filter(singleList, teams);
+        if (visible.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // QA-011: Decorate body with staleness warning if stale
+        if (Boolean.TRUE.equals(doc.getMeta().getStale())) {
+            String decoratedBody = stalenessService.decorateBody(doc);
+            doc = new SkillDocument(doc.getMeta(), decoratedBody);
+        }
+
+        return ResponseEntity.ok(ApiResponse.ok(doc));
     }
 
-    @GetMapping("/index")
+    @GetMapping("/skills/index")
     public ResponseEntity<ApiResponse<List<SkillMeta>>> getIndex(
             @RequestParam(required = false) List<String> teams
     ) {
         List<SkillMeta> index = skillRepository.loadIndex();
         index = VisibilityFilter.filter(index, teams);
         return ResponseEntity.ok(ApiResponse.ok(index));
+    }
+
+    // QA-001: Release endpoint
+    @GetMapping("/releases")
+    public ResponseEntity<ApiResponse<ReleaseService.ReleaseFile>> getReleases() {
+        return ResponseEntity.ok(ApiResponse.ok(releaseService.getPublished()));
     }
 
     private List<String> resolveTeams(String team, List<String> teams) {

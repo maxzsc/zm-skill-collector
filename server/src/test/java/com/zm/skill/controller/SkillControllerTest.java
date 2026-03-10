@@ -4,6 +4,8 @@ import com.zm.skill.domain.Completeness;
 import com.zm.skill.domain.SkillMeta;
 import com.zm.skill.domain.SkillType;
 import com.zm.skill.domain.Visibility;
+import com.zm.skill.service.ReleaseService;
+import com.zm.skill.service.StalenessService;
 import com.zm.skill.storage.SkillDocument;
 import com.zm.skill.storage.SkillRepository;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -28,6 +31,12 @@ class SkillControllerTest {
 
     @MockBean
     private SkillRepository skillRepository;
+
+    @MockBean
+    private StalenessService stalenessService;
+
+    @MockBean
+    private ReleaseService releaseService;
 
     @Test
     void listSkills_shouldReturnAllSkills() throws Exception {
@@ -126,6 +135,38 @@ class SkillControllerTest {
     }
 
     @Test
+    void getSkill_teamSkillWithoutTeams_shouldReturn404() throws Exception {
+        SkillMeta meta = SkillMeta.builder()
+                .name("secret-skill")
+                .type(SkillType.KNOWLEDGE)
+                .domain("payment")
+                .visibility(Visibility.parse("team:payment"))
+                .build();
+        SkillDocument doc = new SkillDocument(meta, "# Secret");
+        when(skillRepository.findByName("secret-skill")).thenReturn(Optional.of(doc));
+
+        // QA-002: Without teams, team-scoped skill should be invisible
+        mockMvc.perform(get("/api/skills/secret-skill"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getSkill_teamSkillWithCorrectTeam_shouldReturn200() throws Exception {
+        SkillMeta meta = SkillMeta.builder()
+                .name("secret-skill")
+                .type(SkillType.KNOWLEDGE)
+                .domain("payment")
+                .visibility(Visibility.parse("team:payment"))
+                .build();
+        SkillDocument doc = new SkillDocument(meta, "# Secret");
+        when(skillRepository.findByName("secret-skill")).thenReturn(Optional.of(doc));
+
+        mockMvc.perform(get("/api/skills/secret-skill").param("teams", "payment"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.meta.name").value("secret-skill"));
+    }
+
+    @Test
     void getIndex_shouldReturnAllMeta() throws Exception {
         List<SkillMeta> index = List.of(
                 SkillMeta.builder()
@@ -142,5 +183,16 @@ class SkillControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].name").value("payment-clearing"));
+    }
+
+    @Test
+    void getReleases_shouldReturnReleaseFile() throws Exception {
+        ReleaseService.ReleaseFile releaseFile = new ReleaseService.ReleaseFile();
+        releaseFile.setSchemaVersion(1);
+        when(releaseService.getPublished()).thenReturn(releaseFile);
+
+        mockMvc.perform(get("/api/releases"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 }

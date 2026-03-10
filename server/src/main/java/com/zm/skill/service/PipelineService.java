@@ -12,6 +12,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -33,11 +34,15 @@ public class PipelineService {
     private final GitService gitService;
     private final ParserFactory parserFactory;
     private final SkillUpdateService skillUpdateService;
+    private final ReleaseService releaseService;
 
     // In-memory submission store for tracking status
     private final Map<String, Submission> submissions = new ConcurrentHashMap<>();
     // Store documents associated with submissions
     private final Map<String, Map<String, String>> submissionDocuments = new ConcurrentHashMap<>();
+
+    // QA-003: Idempotency key -> submission map for atomic putIfAbsent
+    private final ConcurrentHashMap<String, Submission> idempotencyMap = new ConcurrentHashMap<>();
 
     // P0-9: Domain-level concurrency locks
     private final ConcurrentHashMap<String, ReentrantLock> domainLocks = new ConcurrentHashMap<>();
@@ -51,7 +56,8 @@ public class PipelineService {
         SkillRepository skillRepository,
         GitService gitService,
         ParserFactory parserFactory,
-        SkillUpdateService skillUpdateService
+        SkillUpdateService skillUpdateService,
+        ReleaseService releaseService
     ) {
         this.classificationService = classificationService;
         this.clusteringService = clusteringService;
@@ -62,6 +68,7 @@ public class PipelineService {
         this.gitService = gitService;
         this.parserFactory = parserFactory;
         this.skillUpdateService = skillUpdateService;
+        this.releaseService = releaseService;
     }
 
     /**
@@ -74,6 +81,9 @@ public class PipelineService {
     public List<DomainCluster> submitAndScan(Submission submission, Map<String, String> documents) {
         submissions.put(submission.getId(), submission);
         submissionDocuments.put(submission.getId(), new HashMap<>(documents));
+        if (submission.getIdempotencyKey() != null) {
+            idempotencyMap.put(submission.getIdempotencyKey(), submission);
+        }
 
         try {
             // Parse documents
@@ -180,11 +190,25 @@ public class PipelineService {
         if (allSuccess) {
             updateStatus(submission, ProcessingStatus.COMPLETED);
             gitService.commitAll("skill: generate/update skills");
+            // QA-001: Publish release pointer for each successful skill
+            for (PipelineResult r : results) {
+                if (r.isSuccess() && r.getSkillName() != null) {
+                    releaseService.publish(r.getSkillName());
+                }
+            }
+            gitService.commitAll("release: update release.json");
         } else if (anySuccess) {
             // P0-8 / P1-21: Partial success - store failed cluster names
             updateStatus(submission, ProcessingStatus.PARTIALLY_COMPLETED);
             submission.setErrorMessage("Failed clusters: " + String.join(", ", failedClusterNames));
             gitService.commitAll("skill: generate/update skills (partial)");
+            // QA-001: Publish release pointer for each successful skill
+            for (PipelineResult r : results) {
+                if (r.isSuccess() && r.getSkillName() != null) {
+                    releaseService.publish(r.getSkillName());
+                }
+            }
+            gitService.commitAll("release: update release.json");
         } else {
             submission.setStatus(ProcessingStatus.FAILED);
             submission.setErrorMessage("All clusters failed to generate: " + String.join(", ", failedClusterNames));
@@ -198,6 +222,9 @@ public class PipelineService {
      */
     public PipelineResult submitSingle(Submission submission, String fileName, String documentText) {
         submissions.put(submission.getId(), submission);
+        if (submission.getIdempotencyKey() != null) {
+            idempotencyMap.put(submission.getIdempotencyKey(), submission);
+        }
 
         try {
             // Parse
@@ -250,6 +277,20 @@ public class PipelineService {
                     }
                 }
 
+                // QA-009: AI validation for L3 completeness
+                if (validationResult.getAutoCompleteness() == com.zm.skill.domain.Completeness.L3) {
+                    ValidationService.ValidationResult aiResult = validationService.validateWithAi(skillDoc);
+                    if (!aiResult.isAiPassed()) {
+                        List<String> aiWarnings = new ArrayList<>();
+                        if (aiResult.getAiIssues() != null) {
+                            aiWarnings.addAll(aiResult.getAiIssues());
+                        }
+                        validationResult.setAiScore(aiResult.getAiScore());
+                        validationResult.setAiPassed(aiResult.isAiPassed());
+                        validationResult.setAiIssues(aiResult.getAiIssues());
+                    }
+                }
+
                 // Dedup check
                 updateStatus(submission, ProcessingStatus.DEDUP_CHECK);
                 List<SkillDocument> existingSkills = loadExistingSkillsForDomain(domain);
@@ -261,8 +302,18 @@ public class PipelineService {
                 skillRepository.saveRaw(
                     domain, classification.getType(), fileName, documentText);
 
+                // QA-006: Save glossary from aliases
+                if (skillDoc.getMeta().getAliases() != null && !skillDoc.getMeta().getAliases().isEmpty()) {
+                    Map<String, List<String>> glossary = Map.of(skillDoc.getMeta().getName(), skillDoc.getMeta().getAliases());
+                    skillRepository.saveGlossary(domain, glossary);
+                }
+
                 updateStatus(submission, ProcessingStatus.COMPLETED);
                 gitService.commitAll("skill: generate/update skills");
+
+                // QA-001: Publish release pointer
+                releaseService.publish(skillDoc.getMeta().getName());
+                gitService.commitAll("release: update release.json");
 
                 List<String> warnings = new ArrayList<>();
                 if (dedupResult.isDuplicate()) {
@@ -318,9 +369,23 @@ public class PipelineService {
         if (key == null) {
             return Optional.empty();
         }
-        return submissions.values().stream()
-            .filter(s -> key.equals(s.getIdempotencyKey()))
-            .findFirst();
+        Submission existing = idempotencyMap.get(key);
+        if (existing != null) {
+            return Optional.of(existing);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * QA-003: Atomic idempotency check — uses ConcurrentHashMap.computeIfAbsent
+     * to eliminate the race window between check and create.
+     */
+    public Submission getOrCreateSubmission(String idempotencyKey, Supplier<Submission> creator) {
+        return idempotencyMap.computeIfAbsent(idempotencyKey, k -> {
+            Submission s = creator.get();
+            submissions.put(s.getId(), s);
+            return s;
+        });
     }
 
     /**
@@ -407,6 +472,25 @@ public class PipelineService {
             // Validate
             ValidationService.ValidationResult validationResult = validationService.validate(skillDoc);
 
+            // QA-004: If validation fails, do NOT save the skill
+            if (!validationResult.isValid()) {
+                return PipelineResult.builder()
+                    .skillName(skillDoc.getMeta().getName())
+                    .domain(domain)
+                    .success(false)
+                    .errorMessage("Validation failed: " + String.join("; ", validationResult.getErrors()))
+                    .validationResult(validationResult)
+                    .build();
+            }
+
+            // QA-009: AI validation for L3 completeness
+            if (validationResult.getAutoCompleteness() == com.zm.skill.domain.Completeness.L3) {
+                ValidationService.ValidationResult aiResult = validationService.validateWithAi(skillDoc);
+                validationResult.setAiScore(aiResult.getAiScore());
+                validationResult.setAiPassed(aiResult.isAiPassed());
+                validationResult.setAiIssues(aiResult.getAiIssues());
+            }
+
             // Dedup
             List<SkillDocument> existingSkills = loadExistingSkillsForDomain(domain);
             DeduplicationService.DedupResult dedupResult =
@@ -420,6 +504,12 @@ public class PipelineService {
                     SkillType type = cluster.getSuggestedType() != null ? cluster.getSuggestedType() : SkillType.KNOWLEDGE;
                     skillRepository.saveRaw(domain, type, docName, docContent);
                 }
+            }
+
+            // QA-006: Save glossary from aliases
+            if (skillDoc.getMeta().getAliases() != null && !skillDoc.getMeta().getAliases().isEmpty()) {
+                Map<String, List<String>> glossary = Map.of(skillDoc.getMeta().getName(), skillDoc.getMeta().getAliases());
+                skillRepository.saveGlossary(domain, glossary);
             }
 
             List<String> warnings = new ArrayList<>();

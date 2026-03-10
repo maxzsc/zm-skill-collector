@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class PipelineServiceTest {
@@ -50,10 +51,12 @@ class PipelineServiceTest {
         ParserFactory parserFactory = new ParserFactory();
         SkillUpdateService skillUpdateService = new SkillUpdateService(repository, generationService);
 
+        ReleaseService releaseService = mock(ReleaseService.class);
+
         pipelineService = new PipelineService(
             classificationService, clusteringService, generationService,
             validationService, deduplicationService, repository,
-            gitService, parserFactory, skillUpdateService
+            gitService, parserFactory, skillUpdateService, releaseService
         );
     }
 
@@ -180,7 +183,7 @@ class PipelineServiceTest {
                 "summary": "Payment clearing rules",
                 "trigger": "When user asks about clearing",
                 "aliases": ["clearing"],
-                "body": "# Payment Clearing\\n\\nClearing rules T+1"
+                "body": "# Payment Clearing\\n\\nClearing rules T+1 with detailed content about payment processing and settlement flows for merchants"
             }
             """;
         when(claudeClient.generate(anyString())).thenReturn(generateResponse);

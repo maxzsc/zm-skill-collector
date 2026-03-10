@@ -86,24 +86,53 @@ public class SkillGenerationService {
             List<String> aliases = parseAliases(node.get("aliases"));
             String body = node.get("body").asText();
 
+            // QA-005: Extract optional procedure/extended fields from AI response
+            List<String> preconditions = parseStringList(node.get("preconditions"));
+            List<String> inputs = parseStringList(node.get("inputs"));
+            List<String> expectedOutputs = parseStringList(node.get("expected_outputs"));
+            List<String> verification = parseStringList(node.get("verification"));
+            List<String> sources = parseStringList(node.get("sources"));
+            List<String> relatedSkills = parseStringList(node.get("related_skills"));
+            List<String> relatedKnowledge = parseStringList(node.get("related_knowledge"));
+
             // Apply sensitive info filter
             body = sensitiveInfoFilter.filter(body);
             summary = sensitiveInfoFilter.filter(summary);
 
-            SkillMeta meta = SkillMeta.builder()
+            SkillMeta.SkillMetaBuilder builder = SkillMeta.builder()
                 .name(name)
                 .type(type)
                 .domain(domain)
                 .summary(summary)
                 .trigger(trigger)
                 .aliases(aliases)
-                .visibility(visibility)
-                .build();
+                .visibility(visibility);
+
+            // QA-005: Set optional fields if present
+            if (!preconditions.isEmpty()) builder.preconditions(preconditions);
+            if (!inputs.isEmpty()) builder.inputs(inputs);
+            if (!expectedOutputs.isEmpty()) builder.expectedOutputs(expectedOutputs);
+            if (!verification.isEmpty()) builder.verification(verification);
+            if (!sources.isEmpty()) builder.sources(sources);
+            if (!relatedSkills.isEmpty()) builder.relatedSkills(relatedSkills);
+            if (!relatedKnowledge.isEmpty()) builder.relatedKnowledge(relatedKnowledge);
+
+            SkillMeta meta = builder.build();
 
             return new SkillDocument(meta, body);
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse skill generation response: " + aiResponse, e);
         }
+    }
+
+    private List<String> parseStringList(JsonNode listNode) {
+        List<String> result = new ArrayList<>();
+        if (listNode != null && listNode.isArray()) {
+            for (JsonNode item : listNode) {
+                result.add(item.asText());
+            }
+        }
+        return result;
     }
 
     private List<String> parseAliases(JsonNode aliasesNode) {

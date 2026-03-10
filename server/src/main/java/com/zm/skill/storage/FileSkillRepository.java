@@ -156,6 +156,25 @@ public class FileSkillRepository implements SkillRepository {
         }
     }
 
+    @Override
+    public void clearRawDirectory(String domain, SkillType type, String skillName) {
+        Path rawDir = basePath.resolve("raw").resolve(type.getValue()).resolve(domain);
+        if (!Files.exists(rawDir)) {
+            return;
+        }
+        try (Stream<Path> files = Files.list(rawDir)) {
+            files.filter(Files::isRegularFile).forEach(path -> {
+                try {
+                    Files.delete(path);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete raw file: " + path, e);
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to clear raw directory: " + rawDir, e);
+        }
+    }
+
     private Path resolveSkillPath(SkillMeta meta) {
         String typeDir = meta.getType().getValue();
         String fileName;

@@ -78,7 +78,10 @@ public class SkillUpdateService {
         ReentrantLock lock = getDomainLock(domain);
         lock.lock();
         try {
-            // Overwrite the raw document
+            // QA-008: Clear all existing raw files before saving new one
+            skillRepository.clearRawDirectory(domain, SkillType.PROCEDURE, fileName);
+
+            // Save the new raw document
             skillRepository.saveRaw(domain, SkillType.PROCEDURE, fileName, docContent);
 
             // Regenerate the procedure skill from the new document
